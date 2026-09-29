@@ -4,7 +4,10 @@ const SUBJECTS = [
   { id: 'admin_law', name: '행정법', file: 'data/admin_law.csv' },
   { id: 'education', name: '교육학', file: 'data/education.csv' },
 ];
+const USER_NAME = '구나연';
 const QUESTIONS_PER_ROUND = 25;
+const RECENT_ROUNDS = 2; // 최근 몇 회차에 나온 문제를 뒤로 미룰지
+const HISTORY_MAX = 100;
 const MARKS = ['①', '②', '③', '④'];
 
 const $ = (id) => document.getElementById(id);
@@ -98,14 +101,28 @@ async function loadBank(subject) {
   }
 }
 
+function loadJSON(key, fallback) {
+  try { return JSON.parse(storageGet(key)) ?? fallback; } catch { return fallback; }
+}
+const saveJSON = (key, value) => storageSet(key, JSON.stringify(value));
+const keyOf = (item) => item.q + '\u0001' + item.choices.join('\u0001');
+
+// 오답노트: 문제 키 -> 틀린 횟수. 다시 맞히면 빠짐
+const getWrongNote = (id) => loadJSON('wrong:' + id, {});
+function wrongNoteItems(id) {
+  const note = getWrongNote(id);
+  return banks[id].list.filter((it) => note[keyOf(it)]);
+}
+
 // ---------- 화면 ----------
 
 function show(screen) {
-  for (const id of ['home', 'quiz', 'result']) $(id).classList.toggle('hidden', id !== screen);
+  for (const id of ['home', 'quiz', 'result', 'history']) $(id).classList.toggle('hidden', id !== screen);
   window.scrollTo(0, 0);
 }
 
 function renderHome() {
+  $('title').textContent = `${USER_NAME}님의 문제풀이`;
   const box = $('subjects');
   box.innerHTML = '';
   for (const s of SUBJECTS) {
@@ -116,8 +133,18 @@ function renderHome() {
       : `${b.list.length}문제${b.custom ? ' · 직접 불러옴' : ''}`;
     btn.innerHTML = `<b>${s.name}</b><span>${info}</span>`;
     btn.disabled = b.list.length === 0;
-    btn.onclick = () => startRound(s);
-    box.appendChild(btn);
+    btn.onclick = () => startRound(s, 'normal');
+    const card = document.createElement('div');
+    card.className = 'subject-card';
+    card.appendChild(btn);
+    const wrongCount = b.list.length ? wrongNoteItems(s.id).length : 0;
+    const note = document.createElement('button');
+    note.className = 'note';
+    note.textContent = `오답노트 ${wrongCount}문제 풀기`;
+    note.disabled = wrongCount === 0;
+    note.onclick = () => startRound(s, 'wrong');
+    card.appendChild(note);
+    box.appendChild(card);
   }
 
   const up = $('uploads');
@@ -158,10 +185,21 @@ function shuffle(arr) {
   return a;
 }
 
-function startRound(subject) {
-  // 섞은 뒤 앞에서 25개만 가져오므로 한 회차 안에서는 문제가 겹치지 않음
-  const questions = shuffle(banks[subject.id].list).slice(0, QUESTIONS_PER_ROUND);
-  state = { subject, questions, index: 0, selected: null, submitted: false, correct: 0, wrong: [] };
+function pickQuestions(subject, mode) {
+  if (mode === 'wrong') return shuffle(wrongNoteItems(subject.id)).slice(0, QUESTIONS_PER_ROUND);
+  // 최근 회차에 안 나온 문제를 먼저, 모자라면 최근 문제로 채움.
+  // 각 문제는 한 번만 들어가므로 한 회차 안에서는 겹치지 않음
+  const recent = new Set(loadJSON('recent:' + subject.id, []).flat());
+  const list = banks[subject.id].list;
+  const fresh = list.filter((it) => !recent.has(keyOf(it)));
+  const seen = list.filter((it) => recent.has(keyOf(it)));
+  return [...shuffle(fresh), ...shuffle(seen)].slice(0, QUESTIONS_PER_ROUND);
+}
+
+function startRound(subject, mode = 'normal') {
+  const questions = pickQuestions(subject, mode);
+  if (!questions.length) { show('home'); renderHome(); return; }
+  state = { subject, mode, questions, index: 0, selected: null, submitted: false, correct: 0, wrong: [] };
   show('quiz');
   renderQuestion();
 }
@@ -203,8 +241,15 @@ function submit() {
   const item = state.questions[state.index];
   const ok = state.selected === item.answer;
   state.submitted = true;
-  if (ok) state.correct++;
-  else state.wrong.push({ ...item, mine: state.selected });
+  const note = getWrongNote(state.subject.id);
+  if (ok) {
+    state.correct++;
+    delete note[keyOf(item)];
+  } else {
+    state.wrong.push({ ...item, mine: state.selected });
+    note[keyOf(item)] = (note[keyOf(item)] || 0) + 1;
+  }
+  saveJSON('wrong:' + state.subject.id, note);
 
   [...$('choices').children].forEach((c, k) => {
     c.classList.remove('selected');
@@ -228,9 +273,65 @@ function next() {
   else renderResult();
 }
 
-function renderResult() {
+function saveRound() {
+  const id = state.subject.id;
   const total = state.questions.length;
-  $('resultSubject').textContent = `${state.subject.name} 결과`;
+  if (state.mode === 'normal') {
+    const recent = loadJSON('recent:' + id, []);
+    recent.push(state.questions.map(keyOf));
+    saveJSON('recent:' + id, recent.slice(-RECENT_ROUNDS));
+  }
+  const history = loadJSON('history:' + id, []);
+  history.push({
+    date: new Date().toISOString(),
+    mode: state.mode,
+    correct: state.correct,
+    total,
+    score: Math.round((state.correct / total) * 100),
+  });
+  saveJSON('history:' + id, history.slice(-HISTORY_MAX));
+}
+
+function renderHistory() {
+  const box = $('historyList');
+  box.innerHTML = '';
+  for (const s of SUBJECTS) {
+    const h = loadJSON('history:' + s.id, []);
+    const div = document.createElement('div');
+    div.className = 'hist';
+    const title = document.createElement('h3');
+    title.textContent = s.name;
+    div.appendChild(title);
+    const normal = h.filter((r) => r.mode === 'normal');
+    const summary = document.createElement('p');
+    summary.className = 'hint';
+    if (!h.length) summary.textContent = '아직 기록이 없습니다';
+    else {
+      const avg = normal.length ? Math.round(normal.reduce((a, r) => a + r.score, 0) / normal.length) : '-';
+      const best = normal.length ? Math.max(...normal.map((r) => r.score)) : '-';
+      summary.textContent = `일반 ${normal.length}회 · 평균 ${avg}점 · 최고 ${best}점 · 오답노트 ${wrongNoteItems(s.id).length}문제 남음`;
+    }
+    div.appendChild(summary);
+    if (h.length) {
+      const table = document.createElement('table');
+      for (const r of h.slice(-10).reverse()) {
+        const tr = table.insertRow();
+        const d = new Date(r.date);
+        tr.insertCell().textContent = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        tr.insertCell().textContent = r.mode === 'wrong' ? '오답노트' : '일반';
+        tr.insertCell().textContent = `${r.correct}/${r.total} · ${r.score}점`;
+      }
+      div.appendChild(table);
+    }
+    box.appendChild(div);
+  }
+  show('history');
+}
+
+function renderResult() {
+  saveRound();
+  const total = state.questions.length;
+  $('resultSubject').textContent = `${state.subject.name}${state.mode === 'wrong' ? ' 오답노트' : ''} 결과`;
   $('scoreNum').textContent = Math.round((state.correct / total) * 100);
   $('scoreDetail').textContent = `${total}문제 중 ${state.correct}문제 정답`
     + (total < QUESTIONS_PER_ROUND ? ` (문제은행에 ${total}문제만 있음)` : '');
@@ -258,8 +359,10 @@ function renderResult() {
 // ---------- 시작 ----------
 
 $('actionBtn').onclick = () => (state.submitted ? next() : submit());
-$('quitBtn').onclick = () => { if (confirm('풀이를 그만두고 과목 선택으로 갈까요?')) show('home'); };
-$('retryBtn').onclick = () => startRound(state.subject);
-$('homeBtn').onclick = () => show('home');
+$('retryBtn').onclick = () => startRound(state.subject, state.mode);
+$('homeBtn').onclick = () => { renderHome(); show('home'); };
+$('quitBtn').onclick = () => { if (confirm('풀이를 그만두고 과목 선택으로 갈까요?')) { renderHome(); show('home'); } };
+$('historyBtn').onclick = renderHistory;
+$('historyBack').onclick = () => show('home');
 
 Promise.all(SUBJECTS.map(loadBank)).then(renderHome);
