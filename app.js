@@ -371,4 +371,19 @@ $('quitBtn').onclick = () => { if (confirm('풀이를 그만두고 과목 선택
 $('historyBtn').onclick = renderHistory;
 $('historyBack').onclick = () => show('home');
 
+// 기록 초기화: RESET_VERSION을 올리면 다음 접속 때 모든 기기에서 한 번 초기화됨
+const RESET_VERSION = '1';
+function resetRecords() {
+  for (const s of SUBJECTS) for (const k of ['history:', 'wrong:', 'recent:']) storageSet(k + s.id, null);
+}
+if (storageGet('resetVersion') !== RESET_VERSION) {
+  resetRecords();
+  storageSet('resetVersion', RESET_VERSION);
+}
+$('resetBtn').onclick = () => {
+  if (!confirm('모든 과목의 기록과 오답노트를 지울까요? 되돌릴 수 없습니다.')) return;
+  resetRecords();
+  renderHistory();
+};
+
 Promise.all(SUBJECTS.map(loadBank)).then(renderHome);
