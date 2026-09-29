@@ -1,8 +1,8 @@
 const SUBJECTS = [
-  { id: 'korean', name: '국어', file: 'data/korean.csv' },
-  { id: 'english', name: '영어', file: 'data/english.csv' },
-  { id: 'admin_law', name: '행정법', file: 'data/admin_law.csv' },
-  { id: 'education', name: '교육학', file: 'data/education.csv' },
+  { id: 'korean', name: '국어', icon: '📖', color: 'pink', file: 'data/korean.csv' },
+  { id: 'english', name: '영어', icon: '🌷', color: 'sky', file: 'data/english.csv' },
+  { id: 'admin_law', name: '행정법', icon: '⚖️', color: 'mint', file: 'data/admin_law.csv' },
+  { id: 'education', name: '교육학', icon: '🍎', color: 'lemon', file: 'data/education.csv' },
 ];
 const USER_NAME = '구나연';
 const QUESTIONS_PER_ROUND = 25;
@@ -128,10 +128,10 @@ function renderHome() {
   for (const s of SUBJECTS) {
     const b = banks[s.id];
     const btn = document.createElement('button');
-    btn.className = 'subject';
+    btn.className = 'subject ' + s.color;
     const info = b.error ? '문제 파일을 못 읽음'
       : `${b.list.length}문제${b.custom ? ' · 직접 불러옴' : ''}`;
-    btn.innerHTML = `<b>${s.name}</b><span>${info}</span>`;
+    btn.innerHTML = `<i>${s.icon}</i><b>${s.name}</b><span>${info}</span>`;
     btn.disabled = b.list.length === 0;
     btn.onclick = () => startRound(s, 'normal');
     const card = document.createElement('div');
@@ -300,7 +300,7 @@ function renderHistory() {
     const div = document.createElement('div');
     div.className = 'hist';
     const title = document.createElement('h3');
-    title.textContent = s.name;
+    title.textContent = `${s.icon} ${s.name}`;
     div.appendChild(title);
     const normal = h.filter((r) => r.mode === 'normal');
     const summary = document.createElement('p');
@@ -333,6 +333,12 @@ function renderResult() {
   const total = state.questions.length;
   $('resultSubject').textContent = `${state.subject.name}${state.mode === 'wrong' ? ' 오답노트' : ''} 결과`;
   $('scoreNum').textContent = Math.round((state.correct / total) * 100);
+  const score = Math.round((state.correct / total) * 100);
+  $('resultEmoji').textContent = score >= 90 ? '🏆' : score >= 70 ? '🌟' : score >= 50 ? '🌱' : '💪';
+  $('resultMsg').textContent = score >= 90 ? '훌륭해요! 이대로만 가요'
+    : score >= 70 ? '잘하고 있어요, 조금만 더!'
+    : score >= 50 ? '차근차근 늘고 있어요'
+    : '오답노트로 한 번 더 복습해봐요';
   $('scoreDetail').textContent = `${total}문제 중 ${state.correct}문제 정답`
     + (total < QUESTIONS_PER_ROUND ? ` (문제은행에 ${total}문제만 있음)` : '');
 

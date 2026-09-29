@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>공무원 문제풀이</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@700&family=Gowun+Dodum&display=swap">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -12,9 +14,10 @@
   <!-- 과목 선택 -->
   <section id="home" class="screen">
     <h1 id="title">지방교육행정직 문제풀이</h1>
+    <div class="mascot">🐣</div>
     <p class="sub">과목을 고르면 문제은행에서 25문제가 무작위로 나옵니다.</p>
     <div id="subjects" class="subjects"></div>
-    <button id="historyBtn" class="wide">과목별 기록 보기</button>
+    <button id="historyBtn" class="wide">📒 과목별 기록 보기</button>
     <details class="upload">
       <summary>CSV 파일 직접 불러오기</summary>
       <p class="hint">이 기기(브라우저)에만 저장됩니다. 불러온 파일이 기본 문제은행 대신 쓰입니다.</p>
@@ -45,7 +48,9 @@
 
   <!-- 결과 -->
   <section id="result" class="screen hidden">
+    <div id="resultEmoji" class="big-emoji"></div>
     <h1 id="resultSubject"></h1>
+    <p id="resultMsg" class="msg"></p>
     <div class="score"><span id="scoreNum"></span><small>점</small></div>
     <p id="scoreDetail" class="sub"></p>
     <div class="row">
