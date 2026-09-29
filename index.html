@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>공무원 문제풀이</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main id="app">
+
+  <!-- 과목 선택 -->
+  <section id="home" class="screen">
+    <h1>지방교육행정직 문제풀이</h1>
+    <p class="sub">과목을 고르면 문제은행에서 25문제가 무작위로 나옵니다.</p>
+    <div id="subjects" class="subjects"></div>
+    <details class="upload">
+      <summary>CSV 파일 직접 불러오기</summary>
+      <p class="hint">이 기기(브라우저)에만 저장됩니다. 불러온 파일이 기본 문제은행 대신 쓰입니다.</p>
+      <div id="uploads"></div>
+    </details>
+  </section>
+
+  <!-- 문제 풀이 -->
+  <section id="quiz" class="screen hidden">
+    <div class="topbar">
+      <button id="quitBtn" class="link">← 그만하기</button>
+      <span id="progress"></span>
+      <span id="liveScore"></span>
+    </div>
+    <div class="bar"><div id="barFill"></div></div>
+    <h2 id="question"></h2>
+    <div id="choices" class="choices"></div>
+    <div id="feedback" class="feedback hidden"></div>
+    <button id="actionBtn" class="primary" disabled>제출</button>
+  </section>
+
+  <!-- 결과 -->
+  <section id="result" class="screen hidden">
+    <h1 id="resultSubject"></h1>
+    <div class="score"><span id="scoreNum"></span><small>점</small></div>
+    <p id="scoreDetail" class="sub"></p>
+    <div class="row">
+      <button id="retryBtn" class="primary">다시 풀기</button>
+      <button id="homeBtn">과목 선택으로</button>
+    </div>
+    <h3 id="wrongTitle"></h3>
+    <ol id="wrongList" class="wrong"></ol>
+  </section>
+
+</main>
+<script src="app.js"></script>
+</body>
+</html>
