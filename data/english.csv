@@ -1,3 +1,362 @@
-문제,보기1,보기2,보기3,보기4,정답,해설
-"Choose the word closest in meaning to ""abundant"".",scarce,plentiful,fragile,hostile,2,"abundant는 '풍부한'이라는 뜻으로 plentiful과 의미가 가장 가깝습니다."
-"She ______ to the library every Sunday.",go,going,goes,gone,3,주어가 3인칭 단수(She)이고 습관을 나타내는 현재시제이므로 goes가 맞습니다.
+﻿문제,보기1,보기2,보기3,보기4,정답,해설
+"[2022 지방교육행정직 1번] [ ] 안 부분의 의미와 가장 가까운 것은?
+School teachers have to be [flexible] to cope with different ability levels of the students.",strong,adaptable,honest,passionate,2,"flexible은 '유연한, 융통성 있는'이라는 뜻으로 adaptable(적응력 있는)과 의미가 가장 가깝습니다. passionate는 '열정적인', honest는 '정직한'이라 문맥과 맞지 않습니다."
+"[2022 지방교육행정직 2번] [ ] 안 부분의 의미와 가장 가까운 것은?
+Crop yields [vary], improving in some areas and falling in others.",change,decline,expand,include,1,"vary는 '다르다, 달라지다'라는 뜻으로 어떤 곳은 늘고 어떤 곳은 줄어든다는 내용과 맞아 change(변하다)가 정답입니다. decline(감소하다)은 한쪽 방향만 뜻하므로 틀립니다."
+"[2022 지방교육행정직 3번] [ ] 안 부분의 의미와 가장 가까운 것은?
+I don’t feel inferior to anyone [with respect to] my education.",in danger of,in spite of,in favor of,in terms of,4,"with respect to는 '~에 관하여, ~의 면에서'라는 뜻으로 in terms of와 같습니다. in spite of는 '~에도 불구하고', in favor of는 '~에 찬성하여'라는 뜻입니다."
+"[2022 지방교육행정직 4번] 밑줄 친 부분에 들어갈 말로 가장 적절한 것은?
+Sometimes we ________ money long before the next payday.",turn into,start over,put up with,run out of,4,"다음 월급날 훨씬 전에 돈이 '바닥나다'는 뜻이 자연스러우므로 run out of(~을 다 써 버리다)가 정답입니다. put up with는 '참다', turn into는 '~으로 변하다'라는 뜻입니다."
+[2022 지방교육행정직 5번] 어법상 옳지 않은 것은?,He asked me why I kept coming back day after day.,Toys children wanted all year long has recently discarded.,She is someone who is always ready to lend a helping hand.,Insects are often attracted by scents that aren’t obvious to us.,2,"주어 Toys가 복수이고 장난감은 '버려지는' 대상이므로 have recently been discarded로 써야 합니다. ①은 간접의문문 어순(why+주어+동사)이 바르고, ④는 수동태 are attracted가 바릅니다."
+[2022 지방교육행정직 6번] 어법상 옳지 않은 것은?,You can write on both sides of the paper.,"My home offers me a feeling of security, warm, and love.",The number of car accidents is on the rise.,"Had I realized what you were intending to do, I would have stopped you.",2,"전치사 of 뒤에 명사 security, love와 나란히 와야 하므로 형용사 warm을 명사 warmth로 고쳐야 합니다. ③의 'The number of~'는 단수 취급하여 is가 맞고, ④는 If가 생략되어 도치된 가정법 과거완료로 바릅니다."
+[2022 지방교육행정직 7번] 우리말을 영어로 잘못 옮긴 것은?,"나는 단 한 푼의 돈도 낭비할 수 없다.
+→I can afford to waste even one cent.","그녀의 얼굴에서 미소가 곧 사라졌다.
+→The smile soon faded from her face.","그녀는 사임하는 것 외에는 대안이 없었다.
+→She had no alternative but to resign.","나는 5년 후에 내 사업을 시작할 작정이다.
+→I’m aiming to start my own business in five years.",1,'낭비할 수 없다'이므로 부정형 I can't afford to waste로 써야 합니다. ③의 have no alternative but to는 '~할 수밖에 없다'로 바르게 옮겼습니다.
+[2022 지방교육행정직 8번] 우리말을 영어로 잘못 옮긴 것은?,"식사를 마치자마자 나는 다시 배고프기 시작했다.
+→No sooner I have finishing the meal than I started feeling hungry again.","그녀는 조만간 요금을 내야만 할 것이다.
+→She will have to pay the bill sooner or later.","독서와 정신의 관계는 운동과 신체의 관계와 같다.
+→Reading is to the mind what exercise is to the body.","그는 대학에서 의학을 공부했으나 결국 회계 회사에서 일하게 되었다.
+→He studied medicine at university but ended up working for an accounting firm.",1,'~하자마자 …했다'는 No sooner had I finished the meal than ~처럼 과거완료 도치로 써야 합니다. ③의 A is to B what C is to D는 'A와 B의 관계는 C와 D의 관계와 같다'로 바른 표현입니다.
+[2022 지방교육행정직 9번] 두 사람의 대화 중 가장 어색한 것은?,"A: I like this newspaper because it’s not opinionated.
+B: That’s why it has the largest circulation.","A: Do you have a good reason for being all dressed up?
+B: Yeah, I have an important job interview today.","A: I can hit the ball straight during the practice but not during the game.
+B: That happens to me all the time, too.","A: Is there any particular subject you want to paint on canvas?
+B: I didn’t do good in history when I was in high school.",4,"캔버스에 그리고 싶은 소재(subject)를 물었는데 고등학교 역사 과목(subject) 성적을 답하여 어색합니다. ①의 opinionated는 '독선적인', circulation은 '발행 부수'라는 뜻으로 자연스러운 대화입니다."
+"[2022 지방교육행정직 10번] 밑줄 친 부분에 들어갈 말로 가장 적절한 것은?
+A: Hey! How did your geography test go?
+B: Not bad, thanks. I’m just glad that it’s over! How about you? How did your science exam go?
+A: Oh, it went really well. _______________________. I owe you a treat for that.
+B: It’s my pleasure. So, do you feel like preparing for the math exam scheduled for next week?
+A: Sure. Let’s study together.
+B: It sounds good. See you later.",There’s no sense in beating yourself up over this,I never thought I would see you here,"Actually, we were very disappointed",I can’t thank you enough for helping me with it,4,뒤에 '그 일로 한턱낼게(I owe you a treat)'와 B의 '천만에(It’s my pleasure)'가 오므로 도와줘서 정말 고맙다는 말이 알맞습니다. ③은 시험을 잘 봤다는 말과 반대됩니다.
+"[2022 지방교육행정직 11번] 주어진 글 다음에 이어질 글의 순서로 가장 적절한 것은?
+For people who are blind, everyday tasks such as sorting through the mail or doing a load of laundry present a challenge.
+(A) That’s the thinking behind Aira, a new service that enables its thousands of users to stream live video of their surroundings to an on-demand agent, using either a smartphone or Aira’s proprietary glasses.
+(B) But what if they could “borrow” the eyes of someone who could see?
+(C) The Aira agents, who are available 24/7, can then answer questions, describe objects or guide users through a location.",(A) － (B) － (C),(A) － (C) － (B),(B) － (A) － (C),(C) － (A) － (B),3,"시각장애인의 어려움 다음에 '남의 눈을 빌릴 수 있다면?'(B), 그 생각이 Aira 서비스의 바탕이라는 (A), Aira 상담원이 하는 일(C) 순서가 자연스럽습니다. (A)의 That은 (B)의 생각을 가리키므로 (A)가 먼저 올 수 없습니다."
+"[2022 국가직 1번] [ ] 안 부분의 의미와 가장 가까운 것은?
+For years, detectives have been trying to [unravel] the mystery of the sudden disappearance of the twin brothers.",solve,create,imitate,publicize,1,"unravel은 '(수수께끼·사건을) 풀다, 해명하다'라는 뜻이므로 solve(해결하다)와 가장 가깝습니다. create(만들다), imitate(모방하다), publicize(알리다)는 '미스터리를 풀다'라는 문맥과 맞지 않습니다."
+"[2022 국가직 2번] [ ] 안 부분의 의미와 가장 가까운 것은?
+Before the couple experienced parenthood, their four-bedroom house seemed unnecessarily [opulent].",hidden,luxurious,empty,solid,2,"opulent는 '호화로운, 풍족한'이라는 뜻으로 luxurious(사치스러운)와 같습니다. 아이가 없을 때 방 4개짜리 집이 '쓸데없이 호화로워' 보였다는 문맥이며, empty(텅 빈)는 뜻이 다릅니다."
+"[2022 국가직 3번] [ ] 안 부분의 의미와 가장 가까운 것은?
+The boss [hit the roof] when he saw that we had already spent the entire budget in such a short period of time.",was very satisfied,was very surprised,became extremely calm,became extremely angry,4,"hit the roof는 '몹시 화를 내다, 길길이 뛰다'라는 관용 표현이므로 became extremely angry와 같습니다. 짧은 기간에 예산을 다 써 버린 상황이므로 satisfied(만족한)나 calm(침착한)은 맞지 않습니다."
+"[2022 국가직 4번] 빈칸에 들어갈 말로 가장 적절한 것은?
+A mouse potato is the computer ________ of television’s couch potato: someone who tends to spend a great deal of leisure time in front of the computer in much the same way the couch potato does in front of the television.",technician,equivalent,network,simulation,2,"mouse potato는 TV 앞의 couch potato와 같은 존재를 컴퓨터에 옮겨 놓은 말이므로 equivalent(~에 상당하는 것, 대응물)가 알맞습니다. technician(기술자), network(망), simulation(모의 실험)은 '~에 해당하는 것'이라는 의미를 나타내지 못합니다."
+"[2022 국가직 5번] 빈칸에 들어갈 말로 가장 적절한 것은?
+Mary decided to ________ her Spanish before going to South America.",brush up on,hear out,stick up for,lay off,1,"brush up on은 '(잊어 가던 실력을) 다시 갈고닦다'라는 뜻으로, 남미에 가기 전에 스페인어를 복습한다는 문맥에 맞습니다. hear out(끝까지 듣다), stick up for(옹호하다), lay off(해고하다)는 어울리지 않습니다."
+[2022 국가직 6번] 어법상 옳은 것은?,A horse should be fed according to its individual needs and the nature of its work.,My hat was blown off by the wind while walking down a narrow street.,She has known primarily as a political cartoonist throughout her career.,Even young children like to be complimented for a job done good.,1,"말은 먹이를 '받는' 대상이므로 수동태 should be fed가 맞고, its도 a horse를 바르게 받습니다. ②는 걷는 주체가 모자가 아니므로 while I was walking으로, ③은 has been known으로, ④는 부사 well로 고쳐야 합니다."
+"[2022 국가직 8번] [ ] 안 부분 중 어법상 옳지 않은 것은?
+To find a good starting point, one must return to the year 1800 during ① [which] the first modern electric battery was developed. Italian Alessandro Volta found that a combination of silver, copper, and zinc ② [were] ideal for producing an electrical current. The enhanced design, ③ [called] a Voltaic pile, was made by stacking some discs made from these metals between discs made of cardboard soaked in sea water. There was ④ [such] talk about Volta’s work that he was requested to conduct a demonstration before the Emperor Napoleon himself.",which,were,called,such,2,"that절의 주어는 단수인 a combination이므로 동사는 were가 아니라 was여야 합니다. ①은 전치사+관계대명사 during which로 맞고, ③은 '~라고 불리는'의 과거분사, ④는 such ~ that 구문으로 맞습니다."
+"[2022 국가직 11번] 빈칸에 들어갈 말로 가장 적절한 것은?
+A: I heard that the university cafeteria changed their menu.
+B: Yeah, I just checked it out.
+A: And they got a new caterer.
+B: Yes. Sam’s Catering.
+A: ________?
+B: There are more dessert choices. Also, some sandwich choices were removed.",What is your favorite dessert,Do you know where their office is,Do you need my help with the menu,What’s the difference from the last menu,4,"B가 '디저트 선택이 늘고 샌드위치 일부가 빠졌다'며 바뀐 점을 답하므로, '이전 메뉴와 무엇이 다른가'를 묻는 ④가 알맞습니다. ①은 좋아하는 디저트를 묻는 말이라 B의 대답과 맞지 않습니다."
+"[2022 국가직 12번] 빈칸에 들어갈 말로 가장 적절한 것은?
+A: Hi there. May I help you?
+B: Yes, I’m looking for a sweater.
+A: Well, this one is the latest style from the fall collection. What do you think?
+B: It’s gorgeous. How much is it?
+A: Let me check the price for you. It’s $120.
+B: ________.
+A: Then how about this sweater? It’s from the last season, but it’s on sale for $50.
+B: Perfect! Let me try it on.",I also need a pair of pants to go with it,That jacket is the perfect gift for me,It’s a little out of my price range,We are open until 7 p.m. on Saturdays,3,"점원이 이어서 더 싼 50달러짜리 할인 스웨터를 권하므로, B는 '제 예산을 조금 넘네요(out of my price range)'라고 말했을 것입니다. ①은 바지를 더 사겠다는 말이라 더 싼 물건을 권하는 흐름과 맞지 않습니다."
+[2022 국가직 13번] 우리말을 영어로 잘못 옮긴 것은?,우리가 영어를 단시간에 배우는 것은 결코 쉬운 일이 아니다. → It is by no means easy for us to learn English in a short time.,우리 인생에서 시간보다 더 소중한 것은 없다. → Nothing is more precious as time in our life.,아이들은 길을 건널 때 아무리 조심해도 지나치지 않다. → Children cannot be too careful when crossing the street.,그녀는 남들이 말하는 것을 쉽게 믿는다. → She easily believes what others say.,2,비교급 more precious 뒤에는 as가 아니라 than이 와야 하므로 'Nothing is more precious than time'이 맞습니다. ③의 cannot be too ~는 '아무리 ~해도 지나치지 않다'라는 올바른 표현입니다.
+[2022 국가직 14번] 우리말을 영어로 잘못 옮긴 것은?,"커피 세 잔을 마셨기 때문에, 그녀는 잠을 이룰 수 없다. → Having drunk three cups of coffee, she can’t fall asleep.","친절한 사람이어서, 그녀는 모든 이에게 사랑받는다. → Being a kind person, she is loved by everyone.","모든 점이 고려된다면, 그녀가 그 직위에 가장 적임인 사람이다. → All things considered, she is the best-qualified person for the position.",다리를 꼰 채로 오랫동안 앉아 있는 것은 혈압을 상승시킬 수 있다. → Sitting with the legs crossing for a long period can raise blood pressure.,4,"'with+목적어+분사'에서 다리는 '꼬여지는' 대상이므로 현재분사 crossing이 아니라 과거분사 crossed를 써야 합니다. ①의 완료분사구문, ③의 독립분사구문 All things considered는 바르게 쓰였습니다."
+"[2023 지방교육행정직 1번] [ ] 안 부분의 의미와 가장 가까운 것은?
+Further explanations on our project will be given in [subsequent] presentations.",required,following,advanced,supplementary,2,"subsequent는 '그 다음의, 이후의'라는 뜻으로 following(다음의)과 같습니다. supplementary는 '보충의', required는 '필수의'라는 뜻입니다."
+"[2023 지방교육행정직 2번] [ ] 안 부분의 의미와 가장 가까운 것은?
+Folkways are customs that members of a group are expected to follow to show [courtesy] to others. For example, saying “excuse me” when you sneeze is an American folkway.",charity,humility,boldness,politeness,4,"courtesy는 '예의, 공손함'이라는 뜻으로 politeness와 같습니다. humility는 '겸손', charity는 '자선', boldness는 '대담함'입니다."
+"[2023 지방교육행정직 3번] [ ] 안 부분의 의미와 가장 가까운 것은?
+These children have been [brought up] on a diet of healthy food.",raised,advised,observed,controlled,1,"bring up은 '(아이를) 기르다, 양육하다'라는 뜻으로 raised와 같습니다. observed는 '관찰된', controlled는 '통제된'이라는 뜻입니다."
+"[2023 지방교육행정직 4번] [ ] 안 부분의 의미와 가장 가까운 것은?
+Slavery was not [done away with] until the nineteenth century in the U.S.",abolished,consented,criticized,justified,1,"do away with는 '~을 없애다, 폐지하다'라는 뜻으로 abolished와 같습니다. criticized는 '비판받은', justified는 '정당화된'이라는 뜻입니다."
+"[2023 지방교육행정직 5번] 밑줄 친 부분에 들어갈 말로 가장 적절한 것은?
+Voters demanded that there should be greater _________ in the election process so that they could see and understand it clearly.",deception,flexibility,competition,transparency,4,"선거 과정을 분명히 보고 이해할 수 있도록 요구한 것은 transparency(투명성)입니다. deception은 '속임수', flexibility는 '유연성'이라 문맥에 맞지 않습니다."
+"[2023 지방교육행정직 6번] [ ] 안 부분 중 어법상 옳지 않은 것은?
+One reason for upsets in sports—①[in which] the team ②[predicted] to win and supposedly superior to their opponents surprisingly loses the contest—is ③[what] the superior team may not have perceived their opponents as ④[threatening] to their continued success.",in which,predicted,what,threatening,3,"뒤에 주어·목적어를 다 갖춘 완전한 문장이 오므로 보어절을 이끄는 접속사 that을 써야 하며, 불완전한 문장을 이끄는 what은 틀립니다. ②의 predicted는 '승리할 것으로 예상된' 팀을 꾸미는 과거분사로 바릅니다."
+[2023 지방교육행정직 7번] [ ] 안 부분이 어법상 옳지 않은 것은?,"I [should have gone] this morning, but I was feeling a bit ill.",These days we do not save as much money [as we used to].,The rescue squad was happy to discover [an alive man].,The picture [was looked at] carefully by the art critic.,3,alive는 보통 명사 앞에 직접 놓아 꾸미지 않고 서술적으로 쓰는 형용사이므로 a living man(또는 a man alive)으로 고쳐야 합니다. ④는 동사구 look at의 수동태로 바르게 썼습니다.
+[2023 지방교육행정직 8번] 우리말을 영어로 잘못 옮긴 것은?,"우리는 그의 연설에 감동하게 되었다.
+→We were made touching with his speech.","비용은 차치하고 그 계획은 훌륭한 것이었다.
+→Apart from its cost, the plan was a good one.","그들은 뜨거운 차를 마시는 동안에 일몰을 보았다.
+→They watched the sunset while drinking hot tea.","과거 경력 덕분에 그는 그 프로젝트에 적합하였다.
+→His past experience made him suited for the project.",1,"우리가 '감동을 받은' 것이므로 과거분사를 써서 We were touched by his speech처럼 써야 하며, touching(감동을 주는)은 틀립니다. ②의 apart from은 '~은 차치하고'라는 뜻으로 바릅니다."
+"[2023 지방교육행정직 9번] 밑줄 친 부분에 들어갈 말로 가장 적절한 것은?
+A: Pardon me, but could you give me a hand, please?
+B: ________________________________________________
+A: I’m trying to find the Personnel Department. I have an appointment at 10.
+B: It’s on the third floor.
+A: How can I get up there?
+B: Take the elevator around the corner.",We have no idea how to handle this situation.,Would you mind telling us who is in charge?,Yes. I could use some help around here.,Sure. Can I help you with anything?,4,"도와 달라는 부탁에 '물론이죠, 무엇을 도와드릴까요?'라고 해야 A가 인사부 위치를 묻는 흐름이 이어집니다. ③은 B 자신이 도움이 필요하다는 말이라 어색합니다."
+"[2023 지방교육행정직 10번] 밑줄 친 부분에 들어갈 말로 가장 적절한 것은?
+A: You were the last one who left the office, weren’t you?
+B: Yes. Is there any problem?
+A: I found the office lights and air conditioners on this morning.
+B: Really? Oh, no. Maybe I forgot to turn them off last night.
+A: Probably they were on all night.
+B: ________________________________________________",Don’t worry. This machine is working fine.,That’s right. Everyone likes to work with you.,I’m sorry. I promise I’ll be more careful from now on.,Too bad. You must be tired because you get off work too late.,3,B가 불과 냉방기를 끄지 않아 밤새 켜져 있었으므로 사과하며 앞으로 조심하겠다고 하는 것이 자연스럽습니다. ①은 기계가 잘 작동한다는 엉뚱한 말입니다.
+[2023 지방교육행정직 11번] 두 사람의 대화 중 자연스럽지 않은 것은?,"A: How would you like your hair done?
+B: I’m a little tired of my hair color. I’d like to dye it.","A: What can we do to slow down global warming?
+B: First of all, we can use more public transportation.","A: Anna, is that you? Long time no see! How long has it been?
+B: It took me about an hour and a half by car.","A: I’m worried about Paul. He looks unhappy. What should I do?
+B: If I were you, I’d wait until he talks about his troubles.",3,'얼마 만이니?(How long has it been?)'라고 오랜만에 만난 기간을 물었는데 차로 걸린 시간을 답하여 어색합니다. ①의 dye는 '염색하다'로 자연스러운 대답입니다.
+"[2023 지방교육행정직 17번] 주어진 글 다음에 이어질 글의 순서로 가장 적절한 것은?
+Just a few years ago, every conversation about artificial intelligence (AI) seemed to end with an apocalyptic prediction.
+(A) More recently, however, things have begun to change. AI has gone from being a scary black box to something people can use for a variety of use cases.
+(B) In 2014, an expert in the field said that, with AI, we are summoning the demon, while a Nobel Prize winning physicist said that AI could spell the end of the human race.
+(C) This shift is because these technologies are finally being explored at scale in the industry, particularly for market opportunities.",(A) － (B) － (C),(B) － (A) － (C),(B) － (C) － (A),(C) － (A) － (B),2,"종말론적(apocalyptic) 예측의 구체적 예(B), 최근 상황이 바뀌었다는 (A), 그 변화(This shift)의 이유(C) 순서가 자연스럽습니다. (C)의 This shift는 (A)의 변화를 가리키므로 (A) 앞에 올 수 없습니다."
+"[2023 국가직 1번] [ ] 안 부분의 의미와 가장 가까운 것은?
+Jane wanted to have a small wedding rather than a fancy one. Thus, she planned to invite her family and a few of her [intimate] friends to eat delicious food and have some pleasant moments.",nosy,close,outgoing,considerate,2,"intimate는 '친밀한, 가까운'이라는 뜻이므로 close(친한)와 같습니다. 작은 결혼식에 가족과 '친한' 친구 몇 명만 부른다는 문맥이며, nosy(참견하기 좋아하는), outgoing(외향적인)은 뜻이 다릅니다."
+"[2023 국가직 2번] [ ] 안 부분의 의미와 가장 가까운 것은?
+The [incessant] public curiosity and consumer demand due to the health benefits with lesser cost has increased the interest in functional foods.",rapid,constant,significant,intermittent,2,"incessant는 '끊임없는'이라는 뜻으로 constant(지속적인)와 같습니다. intermittent는 '간헐적인, 띄엄띄엄 일어나는'이라는 뜻이라 오히려 반대에 가깝습니다."
+"[2023 국가직 3번] [ ] 안 부분의 의미와 가장 가까운 것은?
+Because of the pandemic, the company had to [hold off] the plan to provide the workers with various training programs.",elaborate,release,modify,suspend,4,"hold off는 '미루다, 보류하다'라는 뜻이므로 suspend(중단하다, 보류하다)와 가깝습니다. 팬데믹 때문에 교육 계획을 '미뤄야' 했다는 문맥이며, elaborate(정교하게 만들다)나 modify(수정하다)는 뜻이 다릅니다."
+"[2023 국가직 4번] [ ] 안 부분의 의미와 가장 가까운 것은?
+The new Regional Governor said he would [abide by] the decision of the High Court to release the prisoner.",accept,report,postpone,announce,1,"abide by는 '(규칙·결정을) 따르다, 받아들이다'라는 뜻이므로 accept(수용하다)와 같습니다. postpone(연기하다), announce(발표하다)는 법원 결정을 '따르겠다'는 의미와 다릅니다."
+"[2023 국가직 5번] [ ] 안 부분 중 어법상 옳지 않은 것은?
+While advances in transplant technology have made ① [it] possible to extend the life of individuals with end-stage organ disease, it is argued ② [that] the biomedical view of organ transplantation as a bounded event, which ends once a heart or kidney is successfully replaced, ③ [conceal] the complex and dynamic process that more ④ [accurately] represents the experience of receiving an organ.",it,that,conceal,accurately,3,"that절의 주어는 단수 the biomedical view이므로 동사는 conceal이 아니라 conceals여야 합니다. ①은 to부정사를 대신하는 가목적어 it, ④는 동사 represents를 꾸미는 부사로 바르게 쓰였습니다."
+[2023 국가직 6번] 어법상 옳지 않은 것은?,All assignments are expected to be turned in on time.,Hardly had I closed my eyes when I began to think of her.,The broker recommended that she buy the stocks immediately.,A woman with the tip of a pencil stuck in her head has finally had it remove.,4,"사역동사 have의 목적어 it(연필 끝)은 '제거되는' 대상이므로 과거분사를 써서 had it removed가 되어야 합니다. ②는 'Hardly had+주어+p.p. ~ when' 도치 구문, ③은 recommend 뒤 that절의 (should) 동사원형으로 맞습니다."
+[2023 국가직 7번] 우리말을 영어로 잘못 옮긴 것은?,내 고양이 나이는 그의 고양이 나이의 세 배이다. → My cat is three times as old as his.,우리는 그 일을 이번 달 말까지 끝내야 한다. → We have to finish the work until the end of this month.,그녀는 이틀에 한 번 머리를 감는다. → She washes her hair every other day.,너는 비가 올 경우에 대비하여 우산을 갖고 가는 게 낫겠다. → You had better take an umbrella in case it rains.,2,'~까지 끝내다'처럼 기한(완료 시점)을 나타낼 때는 until이 아니라 by를 씁니다. until은 '~까지 계속'이라는 지속의 뜻입니다. ③의 every other day는 '이틀에 한 번'이라는 올바른 표현입니다.
+"[2023 국가직 10번] 빈칸에 들어갈 말로 알맞은 것은?
+A: I got this new skin cream from a drugstore yesterday. It is supposed to remove all wrinkles and make your skin look much younger.
+B: ________
+A: Why don’t you believe it? I’ve read in a few blogs that the cream really works.
+B: I assume that the cream is good for your skin, but I don’t think that it is possible to get rid of wrinkles or magically look younger by using a cream.
+A: You are so pessimistic.
+B: No, I’m just being realistic. I think you are being gullible.",I don’t buy it.,It’s too pricey.,I can’t help you out.,"Believe it or not, it’s true.",1,"A가 '왜 안 믿어?'라고 되묻으므로, B는 '난 그 말 안 믿어'라는 뜻의 I don’t buy it(buy=믿다)이라고 했을 것입니다. ②는 가격이 비싸다는 말이라 믿지 않는다는 흐름과 맞지 않습니다. (gullible: 잘 속는)"
+"[2023 국가직 11번] 빈칸에 들어갈 말로 알맞은 것은?
+A: I’d like to go sightseeing downtown. Where do you think I should go?
+B: I strongly suggest you visit the national art gallery.
+A: Oh, that’s a great idea. What else should I check out?
+B: ________
+A: I don’t have time for that. I need to meet a client at three.
+B: Oh, I see. Why don’t you visit the national park, then?
+A: That sounds good. Thank you!",This is the map that your client needs. Here you go.,A guided tour to the river park. It takes all afternoon.,You should check it out as soon as possible.,The checkout time is three o’clock.,2,"A가 '그럴 시간이 없다, 3시에 고객을 만나야 한다'고 답하므로, 빈칸에는 오후 내내 걸리는 일정(강변 공원 가이드 투어)을 추천하는 ②가 알맞습니다. ④는 숙소 퇴실 시간을 말하는 것이라 관광지 추천 질문에 맞지 않습니다."
+[2023 국가직 12번] 두 사람의 대화 중 자연스럽지 않은 것은?,"A: He’s finally in a hit movie! / B: Well, he’s got it made.",A: I’m getting a little tired now. / B: Let’s call it a day.,"A: The kids are going to a birthday party. / B: So, it was a piece of cake.",A: I wonder why he went home early yesterday. / B: I think he was under the weather.,3,"a piece of cake는 '아주 쉬운 일'이라는 뜻이라, 아이들이 생일 파티에 간다는 말에 대한 대답으로 어색합니다. ①의 have it made는 '성공이 보장되다', ②의 call it a day는 '그만 마치다', ④의 under the weather는 '몸이 안 좋은'이라는 뜻으로 자연스럽습니다."
+"[2023 국가직 19번] 주어진 글 다음에 이어질 글의 순서로 알맞은 것은?
+All civilizations rely on government administration. Perhaps no civilization better exemplifies this than ancient Rome.
+(A) To rule an area that large, the Romans, based in what is now central Italy, needed an effective system of government administration.
+(B) Actually, the word “civilization” itself comes from the Latin word civis, meaning “citizen.”
+(C) Latin was the language of ancient Rome, whose territory stretched from the Mediterranean basin all the way to parts of Great Britain in the north and the Black Sea to the east.",(A) - (B) - (C),(B) - (A) - (C),(B) - (C) - (A),(C) - (A) - (B),3,"고대 로마 언급 뒤에 civilization의 어원이 라틴어라는 (B), 라틴어가 로마의 언어였고 영토가 넓었다는 (C), 그렇게 넓은(that large) 지역을 다스리려면 행정 체계가 필요했다는 (A) 순서가 자연스럽습니다. (A)의 that large는 (C)의 넓은 영토 설명 뒤에 와야 합니다."
+"[2024 지방교육행정직 1번] [ ] 안 부분의 의미와 가장 가까운 것은?
+While Shakespeare’s comedies share many similarities, they also differ [markedly] from one another.",softly,obviously,marginally,indiscernibly,2,"markedly는 '현저하게, 뚜렷하게'라는 뜻으로 obviously(명백하게)와 가장 가깝습니다. marginally는 '아주 약간', indiscernibly는 '알아차릴 수 없게'라는 뜻으로 반대 의미에 가깝습니다."
+"[2024 지방교육행정직 2번] [ ] 안 부분의 의미와 가장 가까운 것은?
+Jane poured out the strong, dark tea and [diluted] it with milk.",washed,weakened,connected,fermented,2,"dilute는 '희석하다, 묽게 하다'라는 뜻으로 진한 차에 우유를 타서 묽게 했다는 의미이므로 weakened(약하게 했다)가 정답입니다. fermented는 '발효시킨'이라는 뜻입니다."
+"[2024 지방교육행정직 3번] [ ] 안 부분의 의미와 가장 가까운 것은?
+The Prime Minister is believed to have [ruled out] cuts in child benefit or pensions.",excluded,supported,submitted,authorized,1,"rule out은 '배제하다, 제외하다'라는 뜻으로 excluded와 같습니다. supported(지지한), authorized(승인한)는 오히려 반대 의미입니다."
+"[2024 지방교육행정직 4번] [ ] 안 부분의 의미와 가장 가까운 것은?
+If you [let on] that we are planning a surprise party, Dad will never stop asking you questions.",reveal,observe,believe,possess,1,"let on은 '(비밀을) 털어놓다, 누설하다'라는 뜻으로 reveal(드러내다)과 같습니다. observe는 '관찰하다', possess는 '소유하다'라는 뜻입니다."
+"[2024 지방교육행정직 5번] 밑줄 친 부분에 들어갈 말로 가장 적절한 것은?
+Automatic doors in supermarkets ________ the entry and exit of customers with bags or shopping carts.",ignore,forgive,facilitate,exaggerate,3,자동문은 짐이나 카트를 든 손님의 출입을 '쉽게 해 준다'는 뜻이므로 facilitate(용이하게 하다)가 알맞습니다. exaggerate는 '과장하다'라는 뜻입니다.
+"[2024 지방교육행정직 6번] [ ] 안 부분 중 어법상 옳지 않은 것은?
+One of the many ①[virtues] of the book you are reading ②[is] that it provides an entry point into Maps of Meaning, ③[which] is a highly complex work ④[because of] the author was working out his approach to psychology as he wrote it.",virtues,is,which,because of,4,뒤에 주어(the author)와 동사(was working)가 있는 절이 오므로 전치사 because of가 아니라 접속사 because를 써야 합니다. ②는 주어가 One이므로 단수 동사 is가 맞습니다.
+[2024 지방교육행정직 7번] [ ] 안 부분이 어법상 옳지 않은 것은?,You must plan [not to spend] too much on the project.,My dog [disappeared] last month and hasn’t been seen since.,I’m sad that the people [who] daughter I look after are moving away.,"I bought a book on my trip, and it was [twice as expensive as] it was at home.",3,'그 사람들의 딸'이라는 소유 관계이므로 소유격 관계대명사 whose를 써야 합니다. ②의 disappear는 자동사라 수동태로 쓰지 않으므로 바르게 썼습니다.
+[2024 지방교육행정직 8번] 우리말을 영어로 잘못 옮긴 것은?,"그는 이곳에서 일하는 것이 흥미롭다는 것을 알았다.
+→He found it exciting to work here.","그녀는 나에게 일찍 떠날 것이라고 언급했다.
+→She mentioned me that she would be leaving early.","나는 그가 오는 것을 원하지 않았다.
+→I didn’t want him to come.","좀 더 능숙하고 경험 많은 선생님이었다면 그를 달리 대했을 것이다.
+→A more skillful and experienced teacher would have treated him otherwise.",2,'~에게 …라고 말하다'라는 뜻일 때 mention은 사람을 바로 목적어로 받지 않고 mention to 사람 that~ 형태로 쓰므로 She mentioned to me that~이 맞습니다(mention me는 '나를 언급하다'라는 다른 뜻). ①은 가목적어 it을 바르게 썼습니다.
+"[2024 지방교육행정직 9번] 밑줄 친 부분에 들어갈 말로 가장 적절한 것은?
+A: Charles, I think we need more chairs for our upcoming event.
+B: Really? I thought we already had enough chairs.
+A: My manager told me that more than 350 people are coming.
+B: __________________________________________________
+A: I agree. I am also a bit surprised.
+B: Looks like I’ll have to order more then. Thanks.",I wonder if the manager is going to attend the event.,I thought more than 350 people would be coming.,That’s actually not a large number.,That’s a lot more than I expected.,4,"A가 '동의해, 나도 좀 놀랐어'라고 답하므로 B는 예상보다 훨씬 많다고 놀라움을 표현해야 합니다. ②와 ③은 이미 알았거나 많지 않다는 뜻이라 흐름과 맞지 않습니다."
+"[2024 지방교육행정직 10번] 밑줄 친 부분에 들어갈 말로 가장 적절한 것은?
+A: Can I get the document you referred to at the meeting yesterday?
+B: Sure. What’s the title of the document?
+A: I can’t remember its title, but it was about the community festival.
+B: Oh, I know what you’re talking about.
+A: Great. Can you send it to me via email?
+B: I don’t have it with me. Mr. Park is in charge of the project, so he should have it.
+A: __________________________________________________
+B: Good luck. Hope you get the document you want.",Can you check if he is in the office?,Mr. Park has sent the email to you again.,Are you coming to the community festival?,Thank you for letting me know. I’ll contact him.,4,박 씨가 자료를 가지고 있다는 말을 듣고 알려 줘서 고맙다며 그에게 연락하겠다고 해야 B의 '행운을 빌어'가 자연스럽게 이어집니다. ①은 B에게 또 부탁하는 말이라 마지막 응답과 어울리지 않습니다.
+"[2024 지방교육행정직 17번] 주어진 글 다음에 이어질 글의 순서로 적절한 것은?
+Computer assisted language learning (CALL) is both exciting and frustrating as a field of research and practice.
+(A) Yet the technology changes so rapidly that CALL knowledge and skills must be constantly renewed to stay apace of the field.
+(B) It is exciting because it is complex, dynamic and quickly changing ― and it is frustrating for the same reasons.
+(C) Technology adds dimensions to the domain of language learning, requiring new knowledge and skills for those who wish to apply it into their professional practice.",(A) － (C) － (B),(B) － (A) － (C),(B) － (C) － (A),(C) － (B) － (A),3,"흥미롭고도 좌절감을 준다는 이유(B), 기술이 새로운 지식과 기술을 요구한다는 (C), 그런데(Yet) 기술이 너무 빨리 변해 지식을 계속 새로 익혀야 한다는 (A) 순서가 자연스럽습니다. (A)의 Yet은 (C)의 '새 지식이 필요하다'는 내용을 이어받습니다."
+"[2024 국가직 1번] 밑줄 친 부분에 들어갈 말로 적절한 것은?
+Obviously, no aspect of the language arts stands alone either in learning or in teaching. Listening, speaking, reading, writing, viewing, and visually representing are ________.",distinct,distorted,interrelated,independent,3,언어 영역의 어떤 측면도 따로 떨어져 있지 않다(no aspect ~ stands alone)고 했으므로 interrelated(서로 연관된)가 알맞습니다. distinct(별개의)와 independent(독립적인)는 앞 문장과 반대되는 뜻입니다.
+"[2024 국가직 2번] [ ] 안 부분의 의미와 가장 가까운 것은?
+The money was so cleverly [concealed] that we were forced to abandon our search for it.",spent,hidden,invested,delivered,2,"conceal은 '숨기다'라는 뜻이므로 hidden(숨겨진)과 의미가 같습니다. 돈을 너무 교묘하게 숨겨서 찾기를 포기했다는 내용이며, invested는 '투자된', delivered는 '배달된'이라는 뜻입니다."
+"[2024 국가직 3번] [ ] 안 부분의 의미와 가장 가까운 것은?
+To [appease] critics, the wireless industry has launched a $12 million public-education campaign on the drive-time radio.",soothe,counter,enlighten,assimilate,1,"appease는 '달래다, 진정시키다'라는 뜻으로 soothe와 의미가 가장 가깝습니다. counter는 '반박하다', enlighten은 '깨우치다', assimilate는 '동화시키다'라는 뜻입니다."
+"[2024 국가직 4번] [ ] 안 부분의 의미와 가장 가까운 것은?
+Center officials [play down] the troubles, saying they are typical of any start-up operation.",discern,dissatisfy,underline,underestimate,4,"play down은 '대수롭지 않게 여기다, 축소하다'라는 뜻으로 underestimate(과소평가하다)와 가깝습니다. 문제들이 신생 사업에는 흔한 일이라고 말하는 내용과 맞으며, underline(강조하다)은 반대 뜻입니다."
+"[2024 국가직 5번] [ ] 안 부분의 의미와 가장 가까운 것은?
+She worked diligently and [had the guts] to go for what she wanted.",was anxious,was fortunate,was reputable,was courageous,4,"have the guts는 '배짱(용기)이 있다'라는 뜻이므로 was courageous(용감했다)가 정답입니다. was anxious는 '불안했다', was fortunate는 '운이 좋았다'라는 뜻입니다."
+"[2024 국가직 6번] [ ] 안 부분 중 어법상 옳지 않은 것은?
+①[Despite] the belief that the quality of older houses is superior to ②[those] of modern houses, the foundations of most pre-20th-century houses are dramatically shallow ③[compared] to today’s, and have only stood the test of time due to the flexibility of ④[their] timber framework or the lime mortar between bricks and stones.",Despite,those,compared,their,2,가리키는 대상이 단수 명사 the quality이므로 those가 아니라 that으로 써야 합니다. ④ their는 복수인 most pre-20th-century houses를 가리키므로 바릅니다.
+[2024 국가직 7번] [ ] 안 부분이 어법상 옳지 않은 것은?,"They are not interested in reading poetry, [still more] in writing.","[Once confirmed], the order will be sent for delivery to your address.","[Provided that] the ferry leaves on time, we should arrive at the harbor by morning.",Foreign journalists hope to cover as [much news] as possible during their short stay in the capital.,1,"부정문 뒤에서 '하물며 ~은 더욱 아니다'는 still less(much less)로 써야 하므로 still more가 틀렸습니다. ②는 Once (it is) confirmed를 줄인 형태이고, ③의 Provided that은 '만약 ~라면'이라는 뜻으로 바릅니다."
+[2024 국가직 8번] 우리말을 영어로 바르게 옮긴 것은?,"지원자 수가 증가하고 있어서 우리는 기쁘다.
+→We are glad that the number of applicants is increasing.","나는 2년 전에 그에게서 마지막 이메일을 받았다.
+→I’ve received the last e-mail from him two years ago.","어젯밤에 그가 잔 침대는 꽤 편안했다.
+→The bed which he slept last night was quite comfortable.","그들은 영상으로 새해 인사를 교환했다.
+→They exchanged New Year’s greetings each other on screen.",1,"'the number of + 복수명사'는 단수 취급하므로 is increasing이 바릅니다. ②는 two years ago라는 과거 시점이 있어 현재완료가 아닌 과거형 received를 써야 하고, ③은 slept in이 되어야 하며, ④는 with each other로 써야 합니다."
+"[2024 국가직 9번] 밑줄 친 부분에 들어갈 말로 적절한 것은?
+Brian: Hi, can I get some information on your city tour?
+Ace Tour: Thank you for contacting us. Do you have any specific questions?
+Brian: ________
+Ace Tour: It’ll take you to all the major points of interest in the city.
+Brian: How much is it?
+Ace Tour: It’s 50 dollars per person for a four-hour tour.
+Brian: OK. Can I book four tickets for Friday afternoon?
+Ace Tour: Certainly. I will send you the payment information shortly.",How long is the tour?,What does the city tour include?,Do you have a list of tour packages?,Can you recommend a good tour guide book?,2,빈칸 뒤에서 '도시의 주요 명소를 모두 데려가 준다'고 투어 내용을 설명하므로 투어에 무엇이 포함되는지 묻는 말이 알맞습니다. ①의 투어 시간은 그 대답과 맞지 않습니다.
+"[2024 국가직 11번] 밑줄 친 부분에 들어갈 말로 적절한 것은?
+A: Have you found your phone?
+B: Unfortunately, no. I’m still looking for it.
+A: Have you contacted the subway’s lost and found office?
+B: ________.
+A: If I were you, I would do that first.
+B: Yeah, you are right. I’ll check with the lost and found before buying a new phone.",I went there to ask about the phone,I stopped by the office this morning,"I haven’t done that yet, actually",I tried searching everywhere,3,A가 '나라면 그것부터 하겠다'고 하므로 B는 아직 분실물 센터에 연락하지 않았다고 답해야 합니다. ①과 ②는 이미 다녀왔다는 뜻이라 뒤의 대화와 맞지 않습니다.
+"[2024 국가직 12번] Northeastern Wildlife Exposition에 관한 다음 글의 내용과 일치하는 것은?
+NORTHEASTERN WILDLIFE EXPOSITION (NEWE)
+Admission ticket for Saturday, March 30th, 2024
+• Price: $40.00
+• Opening hours: 10:00 a.m. - 6:00 p.m.
+Kids 10 and under are free. Entry to shows and lectures are first-come, first-served. All venues open rain or shine.
+March 20th is the last day to buy tickets online for the 2024 Northeastern Wildlife Exposition.
+Please note: Purchasing NEWE tickets in advance is the best way to guarantee entry into all exhibits. NEWE organizers may discontinue in-person ticket sales should any venue reach capacity.",10세 어린이는 입장료 40불을 지불해야 한다.,공연과 강연의 입장은 선착순이다.,비가 올 경우에는 행사장을 닫는다.,입장권은 온라인으로만 구매할 수 있다.,2,"'Entry to shows and lectures are first-come, first-served(공연과 강연은 선착순 입장)'라고 했으므로 ②가 일치합니다. 10세 이하는 무료이고, rain or shine(비가 오든 안 오든) 연다고 했으며, 현장 판매(in-person ticket sales)도 있습니다."
+"[2024 국가직 18번] 주어진 글 다음에 이어질 글의 순서로 적절한 것은?
+Interest in movie and sports stars goes beyond their performances on the screen and in the arena.
+(A) The doings of skilled baseball, football, and basketball players out of uniform similarly attract public attention.
+(B) Newspaper columns, specialized magazines, television programs, and Web sites record the personal lives of celebrated Hollywood actors, sometimes accurately.
+(C) Both industries actively promote such attention, which expands audiences and thus increases revenues. But a fundamental difference divides them: What sports stars do for a living is authentic in a way that what movie stars do is not.",(A) － (C) － (B),(B) － (A) － (C),(B) － (C) － (A),(C) － (A) － (B),2,"영화배우의 사생활에 대한 관심(B) 다음에 운동선수도 마찬가지(similarly)라는 (A), 두 산업(Both industries)을 함께 묶어 말하는 (C) 순서가 자연스럽습니다. (A)의 similarly는 앞에 비교 대상이 있어야 하므로 맨 앞에 올 수 없습니다."
+"[2025 지방교육행정직 1번] 밑줄 친 부분에 들어갈 말로 가장 적절한 것은?
+Some plant diseases are indeed difficult to ________ because they can spread rapidly and easily, impacting multiple plants in a vast area.",nourish,eradicate,proliferate,detect,2,"병이 빠르고 쉽게 퍼져 넓은 지역의 많은 식물에 영향을 주므로 '근절하기(eradicate)' 어렵다는 흐름이 자연스럽습니다. nourish는 '영양분을 주다', proliferate는 '급증하다'로 문맥에 맞지 않습니다."
+"[2025 지방교육행정직 2번] 밑줄 친 부분에 들어갈 말로 가장 적절한 것은?
+In the business world, ________ is highly valued as it showcases a person’s commitment to meeting deadlines and respecting others’ time.",humility,sincerity,frugality,punctuality,4,"마감을 지키고 남의 시간을 존중하는 태도를 보여 주는 것은 '시간 엄수(punctuality)'입니다. humility는 '겸손', frugality는 '검소함'이라 시간과 관련이 없습니다."
+"[2025 지방교육행정직 3번] 밑줄 친 부분에 들어갈 말로 가장 적절한 것은?
+Preliminary investigations indicate that some, if not all, of the clients’ money, ________ to be $6 million in total, has found its way into unquoted companies and property purchases.",believe,believing,believed,believes,3,돈(money)은 '~로 여겨지는' 대상이므로 수동의 과거분사 believed가 앞의 명사를 꾸며야 합니다(which is believed to be의 축약). 문장의 동사는 has found이므로 believes처럼 동사를 또 쓸 수 없습니다.
+"[2025 지방교육행정직 4번] 밑줄 친 부분에 들어갈 말로 가장 적절한 것은?
+Yuna: Hi Jenny, I need your advice on buying a car.
+Jenny: Hi, do you want to buy a car? What kind of car?
+Yuna: Maybe a mid-sized sedan or an SUV.
+Jenny: An SUV is more practical.
+Yuna: SUVs are more expensive than sedans. ________.
+Jenny: One of my friends is a used car dealer. He can give you a good deal.
+Yuna: Really? That would be nice.
+Jenny: Do you want his number?
+Yuna: Sure.
+Jenny: Just one second.
+Jenny: 707-123-5678
+Yuna: Thanks!",I’m on a tight budget,I need to get in shape,It should clear up soon,I can pick you up later,1,"SUV가 비싸다고 말한 뒤 친구가 중고차 딜러를 소개해 주므로 '예산이 빠듯해(on a tight budget)'가 알맞습니다. get in shape는 '몸매를 가꾸다', clear up은 '날이 개다'라 흐름과 맞지 않습니다."
+"[2025 지방교육행정직 5번] 밑줄 친 부분에 들어갈 말로 가장 적절한 것은?
+A: How many copies of the presentation materials do you think we’ll need?
+B: 60 should be enough, but it’s always good to have extras.
+A: True. Better safe than sorry. How many would you recommend then?
+B: Let’s make it 75 just in case we have more attendees than expected like last time.
+A: Good idea. ________?
+B: Absolutely. We are going to have people asking for the presentation materials after the presentation.
+A: Sure, that way everyone can easily have it whenever needed.",How early do we need to distribute the materials,Should we also have a digital version for sharing,Will the materials be printed in color or black and white,Are there any specific materials we should avoid including,2,마지막에 '그러면 누구나 필요할 때 쉽게 가질 수 있다'고 하므로 공유용 디지털 버전을 묻는 말이 알맞습니다. Absolutely라는 대답은 예/아니오 질문에 어울리므로 How early나 color or black and white 같은 질문은 맞지 않습니다.
+"[2025 지방교육행정직 13번] [ ] 안 부분 중 어법상 옳지 않은 것은?
+We tend ①[to imagine] Robin Hood and outlaws in general as fugitives because they defied the king’s officials and operated ②[outside the law] in the great forests of the kingdom. What we forget is that there ③[were] an established process behind the creation of outlaws. On the whole, men did not choose to become outlaws; they ④[were made] outlaws.",to imagine,outside the law,were,were made,3,"there be 구문은 뒤의 주어에 수를 맞추는데, 주어 an established process가 단수이므로 were가 아니라 was가 맞습니다. tend to 부정사, 5형식 수동태 were made outlaws는 바르게 쓰였습니다."
+"[2025 지방교육행정직 14번] [ ] 안 부분 중 어법상 옳지 않은 것은?
+The olive tree was ①[such a driving force] in the economies of the Ancient Greek city-states ②[that] it was believed ③[to have been] a gift of gods―namely from Athena, the goddess of wisdom, ④[whom] Athens took its name.",such a driving force,that,to have been,whom,4,'아테나로부터 이름을 따왔다(took its name from Athena)'이므로 전치사를 살린 from whom이 되어야 합니다. such a+명사+that 구문과 과거보다 앞선 일을 나타내는 완료부정사 to have been은 바르게 쓰였습니다.
+"[2025 지방교육행정직 16번] 주어진 글 다음에 이어질 글의 순서로 가장 적절한 것은?
+Usually toddlers picking things up from the ground means trouble.
+
+(A) The family reported the find to the Israel Antiquities Authority, which determined it is a beetle-shaped seal from the Middle Bronze Age.
+(B) But as 3-year-old Ziv Nitzan of Israel brushed away the sand on what seemed to be a rock, she revealed a nearly 4,000-year-old Egyptian artifact.
+(C) Ziv was awarded a certificate for good citizenship, and the Heritage Minister of Israel said the seal “connects us to a grand story,” and that “even children can be a part of discovering history.”",(A)-(C)-(B),(B)-(A)-(C),(B)-(C)-(A),(C)-(B)-(A),2,"'보통은 말썽'이라는 말 뒤에 But으로 반전되는 (B) 유물 발견, 그 발견(the find)을 신고한 (A), 마지막으로 그 결과 상을 받은 (C) 순서가 자연스럽습니다. (A)의 the find는 (B)의 발견을 가리키므로 (A)가 먼저 올 수 없습니다."
+"[2025 지방교육행정직 18번] 다음 글의 흐름상 어색한 문장은?
+Scientists in the UK grew special tomatoes with extra vitamin D, which is important for people’s health. Vitamin D deficiency affects about one billion people worldwide. ① Tomatoes naturally contain a substance that gets converted into vitamin D. ② The team altered the genes of the tomato plants, breeding them to have more of this substance than usual. ③ Each tomato came to have about as much vitamin D as two medium-sized eggs. ④ Moreover, tomatoes are commonly eaten raw in salads and served as a cooked vegetable. The scientists think the technique could be used with other foods, too.",①,②,③,④,4,"글은 비타민 D를 늘린 유전자 변형 토마토 개발에 관한 내용인데, ④는 토마토를 먹는 일반적인 방법을 말해 흐름에서 벗어납니다. ①~③은 원리, 방법, 결과로 자연스럽게 이어집니다."
+"[2025 국가직 1번] 밑줄 친 부분(___________)에 들어갈 말로 가장 적절한 것은?
+All international travelers must carry acceptable ___________ when entering Canada. For example, a passport is the only reliable and universally accepted document when traveling abroad.",currency,identification,insurance,luggage,2,"뒤 문장에서 여권(passport)을 '신뢰할 수 있는 문서'의 예로 들었으므로 identification(신분증명서)이 알맞습니다. currency(통화), insurance(보험), luggage(수하물)는 여권의 예시와 연결되지 않습니다."
+"[2025 국가직 2번] 밑줄 친 부분(_____________)에 들어갈 말로 가장 적절한 것은?
+We are polluting the oceans, killing the fish and thereby _____________ ourselves of invaluable food supply.",depriving,informing,accusing,curing,1,"'deprive A of B'는 'A에게서 B를 빼앗다'라는 뜻으로, 물고기를 죽여 귀중한 식량을 스스로에게서 빼앗는다는 흐름에 맞습니다. inform A of B(알리다), accuse A of B(고발하다), cure A of B(치료하다)는 문맥에 맞지 않습니다."
+"[2025 국가직 3번] 밑줄 친 부분(_____________)에 들어갈 말로 가장 적절한 것은?
+Whitworths, a retailer offering online grocery shopping, says it has discovered that some staff members who are paid a salary _____________ paid enough in recent years.",may not have been,should not have,would not be,will not be,1,"'최근 몇 년간(in recent years)' 충분히 지급받지 못했을 수도 있다는 과거에 대한 추측이므로 'may not have been p.p.'가 맞습니다. ②는 뒤에 been이 없어 수동 의미가 성립하지 않고, ③·④는 과거 사실을 나타내지 못합니다."
+"[2025 국가직 5번] 밑줄 친 부분(________)에 들어갈 말로 가장 적절한 것은?
+A: Aren’t you going to have lunch?
+B: No, I’m not hungry. I’d rather read my book. I’m reading The Lucky Club.
+A: The Lucky Club? What’s it about?
+B: Well, it’s about a group of Korean women who live in Los Angeles. The main character is a woman born in America whose mother came from Korea.
+A: It sounds interesting. Who’s it by?
+B: ________.
+A: She wrote The Heroine Generation, too, didn’t she?
+B: No, that was written by May Lee.
+A: Oh, I see.",I have already read it,Lin Lee is the author,It originally belongs to me,She is one of my relatives in Korea,2,'Who’s it by?'(누가 쓴 책이야?)라고 저자를 물었으므로 저자를 알려 주는 ②가 알맞습니다. 이어지는 'She wrote ~ too'도 저자 이야기임을 보여 줍니다.
+"[2025 국가직 12번] [ ] 안 부분 중 어법상 옳지 않은 것은?
+The city opened the Smart Senior Citizens’ Center, a leisure facility that offers ①[customized] programs for the elderly. It ②[features] virtual activities such as silver aerobics and ③[laughter] therapy, monitors health metrics in collaboration with public health centers, and ④[including] indoor gardening activities.",customized,features,laughter,including,4,"주어 It에 이어지는 동사 features, monitors와 and로 나란히 연결되어야 하므로 including이 아니라 includes가 되어야 합니다. ①은 '맞춤형'이라는 뜻의 과거분사로 programs를 바르게 꾸밉니다."
+"[2025 국가직 13번] [ ] 안 부분 중 어법상 옳지 않은 것은?
+Fire served humans in many ways besides ①[cooking]. With it they could begin ②[rearranging] environments to suit themselves, clearing land to stimulate the growth of wild foods and ③[opening] landscapes to encourage the proliferation of food animals that could be later driven by fire to a place ④[choosing] to harvest them.",cooking,rearranging,opening,choosing,4,"장소(a place)는 사람에 의해 '선택되는' 것이므로 수동의 과거분사 chosen이 되어야 합니다. ②의 begin은 동명사를 목적어로 취할 수 있어 rearranging이 맞습니다. (proliferation: 급증, 번식)"
+"[2025 국가직 18번] 주어진 글 다음에 이어질 글의 순서로 가장 적절한 것은?
+The idea that society should allocate economic rewards and positions of responsibility according to merit is appealing for several reasons.
+
+(A) An economic system that rewards effort, initiative, and talent is likely to be more productive than one that pays everyone the same, regardless of contribution, or that hands out desirable social positions based on favoritism.
+(B) Rewarding people strictly on their merits also has the virtue of fairness; it does not discriminate on any basis other than achievement.
+(C) Two of these reasons are generalized versions of the case for merit in hiring—efficiency and fairness.",(A) - (C) - (B),(B) - (C) - (A),(C) - (A) - (B),(C) - (B) - (A),3,"'여러 이유(several reasons)' 뒤에 그중 두 가지가 효율성과 공정성이라고 소개하는 (C)가 오고, 효율성(생산성)을 설명하는 (A), 'also'로 공정성을 덧붙이는 (B) 순서가 자연스럽습니다. (merit: 능력, 공적)"
+"[2026 지방교육행정직 1번] 밑줄 친 부분에 들어갈 말로 가장 적절한 것은?
+Unfortunately, the survey results show that children’s health is ________ due to overconsumption of fast food.",deteriorating,improving,recovering,advancing,1,Unfortunately와 패스트푸드 과다 섭취라는 원인으로 보아 건강이 '악화되고 있다'는 deteriorating이 알맞습니다. improving(나아지는)과 recovering(회복하는)은 반대 뜻입니다.
+"[2026 지방교육행정직 2번] 밑줄 친 부분에 들어갈 말로 가장 적절한 것은?
+I suggest that you discuss this matter ________ if you don’t want many people to know about it.",discreetly,publicly,loudly,outwardly,1,"많은 사람이 알기를 원하지 않는다면 '조용히, 신중하게' 논의하라는 뜻이 되어야 하므로 discreetly가 정답입니다. publicly(공개적으로)와 loudly(큰 소리로)는 반대 뜻입니다."
+"[2026 지방교육행정직 3번] 밑줄 친 부분에 들어갈 말로 가장 적절한 것은?
+A small plaque ________ from mammoth ivory, dating from 30,000 BCE, is thought to have been carved by prehistoric humans to represent the constellation Orion.",makes,made,to make,was made,2,명판(plaque)은 매머드 상아로 '만들어진' 것이므로 과거분사 made가 앞 명사를 꾸며야 합니다. 문장의 동사 is thought가 이미 있으므로 was made처럼 동사를 하나 더 쓸 수 없습니다.
+"[2026 지방교육행정직 4번] 밑줄 친 부분에 들어갈 말로 가장 적절한 것은?
+James Mayer: Hello. We’d like to reserve a pick-up service from the airport.
+Minji Kim: Hi! How many are in your group?
+James Mayer: 8. I think we’ll need a large van.
+Minji Kim: ________?
+James Mayer: Riverside Hotel. Is it far from the airport?
+Minji Kim: No, it’s only a 5-minute drive.
+James Mayer: Great! Can you pick us up tomorrow at 10 am? Gate 7.
+Minji Kim: Sure! See you tomorrow.",Do you need a smaller car,Where is your group headed,How long are you staying in Korea,When will you pick up your luggage,2,빈칸 뒤에서 'Riverside Hotel'이라고 목적지를 답하므로 일행이 어디로 가는지 묻는 ②가 알맞습니다. 이미 큰 밴이 필요하다고 했으므로 ①은 맞지 않습니다.
+"[2026 지방교육행정직 5번] 밑줄 친 부분에 들어갈 말로 가장 적절한 것은?
+A: Hello, emergency services.
+B: My friend broke his arm while skateboarding! There are no taxis around.
+A: Please tell me your exact location.
+B: We’re in front of the main entrance of city hall.
+A: I’m sending an ambulance to your location.
+B: ________?
+A: The nearest ambulance has already been dispatched, so it should arrive within a few minutes.
+B: Thank you so much.",Will there be a specialist available,Does my friend need his identification card,Do you charge for taking an ambulance,How long will it take for the ambulance to get here,4,A가 '몇 분 안에 도착할 것'이라고 답하므로 구급차가 오는 데 얼마나 걸리는지 묻는 ④가 알맞습니다. ③의 요금 질문은 도착 시간에 대한 대답과 맞지 않습니다.
+"[2026 지방교육행정직 14번] [ ] 안 부분 중 어법상 옳지 않은 것은?
+Moltbook is a site ①[where] the AI agents―bots built by humans―can post and interact with each other. It is designed to look like Reddit, ②[with] subreddits on different topics and upvoting*. On 2 February the platform stated it had more than 1.5 million AI agents signed up to the service. Humans are allowed, but only ③[as] observers. Moltbook was developed in the wake of Moltbot, a free and open-source AI bot that can act as an automated agent for users―doing the mundane tasks assigned to it such as reading, summarising and responding to emails, organising a calendar or ④[book] a table at a restaurant.
+* upvoting: ‘좋아요’ 누르기",where,with,as,book,4,"such as 뒤에 reading, summarising, responding, organising이 나란히 나오므로 book도 동명사 booking으로 써야 합니다. ① where는 뒤에 완전한 문장이 와서 바른 관계부사입니다."
+"[2026 지방교육행정직 17번] 주어진 문장이 들어갈 위치로 가장 적절한 것은?
+[주어진 문장] The gap probably had more to do with each school’s resources than with a student’s daily ration of chocolate cereal.
+
+We’ve all heard that kids who eat breakfast do better in school. ( ① ) It makes sense; it’s hard to focus on an empty stomach. ( ② ) But despite their best attempts, researchers haven’t been able to pinpoint why breakfast aids learning―if that’s even the case. ( ③ ) A study of elementary school students found that, in some schools, kids behaved better after they ate breakfast; in other schools, they acted worse. ( ④ ) Students at well-equipped schools behave better regardless of their diet.",( ① ),( ② ),( ③ ),( ④ ),4,"학교마다 아침 식사 효과가 반대로 나타났다는 문장 뒤에 그 차이(The gap)는 학교의 자원 때문일 것이라는 주어진 문장이 와야, 시설이 좋은 학교 학생들은 식단과 상관없이 행동이 좋다는 마지막 문장으로 자연스럽게 이어집니다."
+"[2026 국가직 1번] 밑줄 친 부분(__________)에 들어갈 말로 가장 적절한 것은?
+Today, as climate change makes some areas less hospitable than others, increasing numbers of people will move to the more __________ areas.",inhumane,habitable,vulnerable,barren,2,"기후 변화로 어떤 지역이 살기 어려워지면(less hospitable) 사람들은 더 '살기에 적합한(habitable)' 지역으로 이동할 것입니다. vulnerable(취약한), barren(척박한)은 오히려 피해 갈 지역의 성격입니다."
+"[2026 국가직 2번] 밑줄 친 부분(_____________)에 들어갈 말로 가장 적절한 것은?
+The message was _____________, drawing my attention involuntarily and leaving me unable to look away from the speaker.",trivial,boring,compelling,monotonous,3,"저절로 주의를 끌고 눈을 뗄 수 없게 만들었다고 했으므로 compelling(강렬한, 마음을 사로잡는)이 알맞습니다. trivial(사소한), boring(지루한), monotonous(단조로운)는 반대 의미입니다."
+"[2026 국가직 3번] 밑줄 친 부분(___________)에 들어갈 말로 가장 적절한 것은?
+Sustainable electric energy systems require that we utilize renewable sources for generating electricity and ___________ it as efficiently as possible.",use,used,to use,are used,1,require that 뒤의 that절에서 동사원형 utilize와 and로 나란히 연결되므로 동사원형 use가 맞습니다. ③ to use나 ④ are used는 병렬 구조가 깨집니다.
+"[2026 국가직 4번] 밑줄 친 부분(________)에 들어갈 말로 가장 적절한 것은?
+Kate: Hi, office printer isn’t working. What do I do?
+Rumy: Did you check paper or see any error messages?
+Kate: Paper OK and no error messages.
+Rumy: Then we need to get a technician fix it.
+Kate: Got it. ________?
+Rumy: Let our assistant know. She will handle it.
+Kate: Do you have her extension number?
+Rumy: 1114
+Kate: Thanks!",Who should I talk to about this,When will the printer be replaced,Where is the paper for the printer,Why does this printer fail when I’m busy,1,"Rumy가 '비서에게 알리면 처리해 줄 것'이라고 답했으므로 '이 일을 누구에게 말해야 하는지' 묻는 ①이 알맞습니다. ③은 이미 종이에 문제가 없다고 했으므로 맞지 않습니다. (extension number: 내선 번호) (참고: 대화의 'get a technician fix it'은 기출 원문 그대로이며, 바른 어법은 'get a technician to fix it'입니다.)"
+"[2026 국가직 5번] 밑줄 친 부분(________)에 들어갈 말로 가장 적절한 것은?
+A: Good morning, Jinu! How’s it going?
+B: I’m doing well. Thank you for asking. How are you?
+A: Actually, I’m very tired. I only got about 3 hours of sleep last night.
+B: Why is that?
+A: I have been working overtime 4 days in a row on the new project.
+B: Oh, I see... but make sure you take care of your health as well.
+A: Thank you. That’s nice of you to say that. I really have to stay healthy until I finish this project.
+B: ________?
+A: We don’t have a definite date, but it’ll probably take another week to complete.",How long have you been working on the project,When do you think you’re going to get it done,How did you get so much work done,Why haven’t you asked for help,2,A가 '정해진 날짜는 없지만 한 주 정도 더 걸릴 것'이라고 답했으므로 언제 끝날지 묻는 ②가 알맞습니다. ①은 지금까지 일한 기간을 묻는 것이라 앞으로의 완료 시점 답변과 맞지 않습니다.
+"[2026 국가직 13번] [ ] 안 부분 중 어법상 옳지 않은 것은?
+①[Regardless of] the loaded aesthetic, philological, moral, confessional, and philosophical origins of the term Middle Ages, the period it defines ②[is] important because it witnessed the emergence of a distinctive European civilization ③[centered] in a region ④[where] was on the periphery of ancient Mediterranean civilization.",Regardless of,is,centered,where,4,관계사절 안에 was의 주어가 없으므로 관계부사 where가 아니라 주격 관계대명사 which(또는 that)가 되어야 합니다. ②는 단수 주어 the period에 맞춘 is로 옳습니다. (periphery: 주변부)
+"[2026 국가직 14번] [ ] 안 부분 중 어법상 옳지 않은 것은?
+For many experts, lab-grown meat ①[has failed] to live up to its promise of replacing traditional meat and ②[reining] in climate change by reducing greenhouse gases that are emitted from livestock farming. The price tag of the quarter-pound bags of cultivated meat at Huber’s is a testament to how ③[incredibly] expensive it is to produce it. “There are enormous scaling challenges between where we are and where we need to get to, and those scaling challenges are not guaranteed ④[to solve],” Mr. Tetrick said.",has failed,reining,incredibly,to solve,4,과제(challenges)는 '해결되는' 대상이므로 수동형 to be solved가 되어야 합니다. ②는 전치사 of 뒤에서 replacing과 and로 병렬 연결된 동명사라 옳습니다. (rein in: 억제하다)
+"[2026 국가직 16번] 주어진 문장이 들어갈 위치로 가장 적절한 것은?
+[주어진 문장] But by getting aggressive, they might not only damage their relationships but also miss the chance of growing through constructive feedback.
+
+Conflict management can be challenging. When conflict arises, we can often see nature’s fight-or-flight response—either attacking the enemy or running away. ( ① ) The ‘fight’ reaction is when people start to prepare themselves for an argument. ( ② ) The ‘flight’ response involves ignoring the issue altogether. ( ③ ) People suppress their feelings, hide disagreements and pretend that everything is fine when it is not. ( ④ ) However, the conflict remains unresolved and the problem gets worse.",①,②,③,④,2,"주어진 문장은 공격적으로 될 때(fight 반응)의 문제점을 말하므로 'fight' 반응을 설명한 문장 뒤, 'flight' 반응 설명이 시작되기 전인 ②에 들어가야 합니다. ④ 뒤에는 이미 회피(flight)의 문제점이 However로 이어집니다."
+"[2026 국가직 17번] 다음 글의 흐름상 어색한 문장은?
+Better known as Gen Z, this generation was born between 1997 and 2012. They began entering the workforce around 2020. ①[Having grown up amid the Great Recession and the pandemic, they are cynical and it is coloring their view of work.] ②[Perhaps, the most telling trend to date is conscious unbossing or the practice of avoiding management roles.] ③[Since these young workers have a strong desire to supervise others, they are eager to work hard to get promoted.] ④[More than half of Gen Z workers surveyed by a research team said they don’t want to be managers.] Clearly, Gen Z workers are shunning traditional career paths and norms that society has accepted for ages.",①,②,③,④,3,"글은 Z세대가 관리자 역할을 피한다(unbossing)는 내용인데, ③은 '남을 관리하려는 욕구가 강해 승진하려 애쓴다'고 하여 흐름과 반대됩니다. ④는 관리자가 되기 싫다는 조사 결과로 ②를 뒷받침합니다. (shun: 피하다)"
