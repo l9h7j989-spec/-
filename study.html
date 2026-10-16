@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>나연이의 공부 플래너</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@700&family=Gowun+Dodum&display=swap">
+<style>
+:root {
+  --bg: #fffaf2;
+  --paper: #ffffff;
+  --grid: #f0e6da;
+  --text: #4a3f45;
+  --muted: #9a8a92;
+  --line: #efe2d6;
+  --accent: #ff8fab;
+  --accent-deep: #ef6a8d;
+  --accent-text: #ffffff;
+  --ok: #3aa36a;
+  --ok-bg: #e7f8ee;
+  --tape1: rgba(255, 196, 214, .75);
+  --tape2: rgba(190, 225, 255, .75);
+  --tape3: rgba(255, 236, 160, .8);
+  --shadow: 0 4px 14px rgba(160, 110, 90, .12);
+  --c0: #ff9fb6; --c1: #8cc8ff; --c2: #7fd6ac; --c3: #ffcf5c; --c4: #c3a6ff;
+  --c5: #ffb07c; --c6: #6fd3d3; --c7: #f59ad8;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1f1b1d; --paper: #2a2427; --grid: #342c30; --text: #f3e9ee; --muted: #b3a2aa;
+    --line: #3d3337; --accent: #ff8fab; --accent-deep: #ff7a9c; --accent-text: #2a1a20;
+    --ok: #6fd79c; --ok-bg: #1f3529;
+    --tape1: rgba(255, 143, 171, .35); --tape2: rgba(120, 180, 240, .35); --tape3: rgba(240, 210, 100, .35);
+    --shadow: 0 4px 14px rgba(0, 0, 0, .35);
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background-color: var(--bg); color: var(--text);
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+  font-family: "Gowun Dodum", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; line-height: 1.6;
+}
+main { max-width: 760px; margin: 0 auto; padding: 20px 16px 60px; }
+h1, h2, .big, .day b, .hand { font-family: "Gaegu", "Gowun Dodum", sans-serif; }
+header { text-align: center; margin-bottom: 18px; }
+header h1 { font-size: 2.2rem; margin: 0; color: var(--accent-deep); }
+header p { margin: 0; color: var(--muted); }
+.nav { display: flex; justify-content: space-between; font-size: .9rem; margin-bottom: 6px; }
+.nav a { color: var(--muted); text-decoration: none; }
+
+.card { position: relative; background: var(--paper); border-radius: 18px; padding: 22px 18px 18px; margin: 26px 0 0; box-shadow: var(--shadow); }
+.card::before { content: ""; position: absolute; top: -11px; left: 50%; width: 110px; height: 22px; transform: translateX(-50%) rotate(-2deg); background: var(--tape1); border-radius: 3px; }
+.card.t2::before { background: var(--tape2); transform: translateX(-50%) rotate(2deg); }
+.card.t3::before { background: var(--tape3); }
+.card h2 { margin: 0 0 12px; font-size: 1.55rem; }
+.card h2 small { font-family: "Gowun Dodum", sans-serif; font-size: .85rem; color: var(--muted); font-weight: 400; margin-left: 6px; }
+
+button, input, select { font: inherit; color: var(--text); }
+button { padding: 10px 14px; border-radius: 14px; border: 2px solid var(--line); background: var(--paper); cursor: pointer; transition: transform .12s, box-shadow .12s; }
+button:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+button:active { transform: scale(.97); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 700; box-shadow: 0 4px 0 var(--accent-deep); }
+button.primary:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--accent-deep); }
+button.small { padding: 4px 10px; font-size: .85rem; border-radius: 10px; }
+input, select { padding: 9px 10px; border-radius: 12px; border: 2px solid var(--line); background: var(--bg); min-width: 0; }
+input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* 이번 주 요약 */
+.week-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.week-head .range { font-family: "Gaegu", sans-serif; font-size: 1.35rem; text-align: center; }
+.week-head .range small { display: block; font-family: "Gowun Dodum"; font-size: .8rem; color: var(--muted); }
+.summary { display: flex; align-items: center; gap: 20px; margin-top: 14px; flex-wrap: wrap; justify-content: center; }
+.ring { width: 150px; height: 150px; flex: none; }
+.ring circle { fill: none; stroke-width: 14; }
+.ring .bg { stroke: var(--line); }
+.ring .fg { stroke: var(--accent); stroke-linecap: round; transition: stroke-dashoffset .5s; transform: rotate(-90deg); transform-origin: 50% 50%; }
+.ring text { font-family: "Gaegu", sans-serif; fill: var(--text); text-anchor: middle; }
+.stats { flex: 1; min-width: 200px; }
+.big { font-size: 2.4rem; line-height: 1.1; color: var(--accent-deep); }
+.big small { font-size: 1.1rem; color: var(--muted); }
+.stats p { margin: 4px 0; }
+.badge { display: inline-block; padding: 2px 10px; border-radius: 999px; background: var(--ok-bg); color: var(--ok); font-size: .9rem; }
+
+/* 입력 */
+.form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.form label { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; color: var(--muted); }
+.form .time { display: flex; gap: 6px; align-items: center; color: var(--text); }
+.form .time input { flex: 1; width: 0; }
+.form .time span { white-space: nowrap; flex: none; }
+.form .full { grid-column: 1 / -1; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { padding: 6px 12px; border-radius: 999px; font-size: .92rem; border: 2px solid var(--line); }
+.chip.on { border-color: var(--accent); background: var(--accent); color: var(--accent-text); }
+.chip .x { margin-left: 4px; opacity: .6; }
+.addsub { display: flex; gap: 6px; margin-top: 6px; }
+.addsub input { flex: 1; width: 0; }
+.addsub button { flex: none; }
+.msg { min-height: 1.4em; font-size: .9rem; color: var(--accent-deep); margin: 6px 0 0; }
+
+/* 요일 */
+.days { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.day { border: 2px dashed var(--line); border-radius: 14px; padding: 10px; background: var(--bg); }
+.day.today { border-style: solid; border-color: var(--accent); }
+.day-top { display: flex; justify-content: space-between; align-items: baseline; }
+.day b { font-size: 1.3rem; }
+.day b.sat { color: #5a8fd6; } .day b.sun { color: #e2556b; }
+.day .sum { font-size: .9rem; color: var(--accent-deep); font-weight: 700; }
+.day ul { list-style: none; padding: 0; margin: 6px 0 0; font-size: .9rem; }
+.day li { display: flex; align-items: center; gap: 6px; padding: 3px 0; border-top: 1px dotted var(--line); }
+.day li .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.day li .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.day li button { border: 0; padding: 0 4px; background: none; color: var(--muted); }
+.day li button:hover { box-shadow: none; color: var(--accent-deep); }
+.day .empty { color: var(--muted); font-size: .85rem; margin-top: 6px; }
+
+/* 과목 막대 */
+.bars { display: flex; flex-direction: column; gap: 10px; }
+.bar-row { display: grid; grid-template-columns: 76px 1fr auto; gap: 10px; align-items: center; font-size: .95rem; }
+.bar-row .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.track { height: 16px; background: var(--bg); border: 2px solid var(--line); border-radius: 999px; overflow: hidden; }
+.fill { height: 100%; border-radius: 999px; transition: width .4s; }
+.bar-row .v { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.empty-note { color: var(--muted); text-align: center; margin: 6px 0; }
+.totals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; text-align: center; }
+.totals div { background: var(--bg); border-radius: 14px; padding: 8px 4px; }
+.totals b { display: block; font-family: "Gaegu", sans-serif; font-size: 1.5rem; color: var(--accent-deep); line-height: 1.2; }
+.totals span { font-size: .8rem; color: var(--muted); }
+
+.weeks { list-style: none; padding: 0; margin: 14px 0 0; font-size: .92rem; }
+.weeks li { display: flex; justify-content: space-between; padding: 5px 0; border-top: 1px dashed var(--line); }
+
+.tools { display: flex; gap: 8px; flex-wrap: wrap; }
+.tools button { flex: 1; min-width: 130px; }
+.hint { color: var(--muted); font-size: .85rem; margin: 8px 0 0; }
+
+@media (max-width: 480px) {
+  .form { grid-template-columns: 1fr; }
+  .ring { width: 130px; height: 130px; }
+  .totals b { font-size: 1.25rem; }
+}
+</style>
+</head>
+<body>
+<main>
+  <div class="nav"><a href="index.html">📝 문제풀이로</a><span></span></div>
+  <header>
+    <h1>📚 나연이의 공부 플래너</h1>
+    <p>순공 시간 기록 · 주간 목표 <span id="goalLabel">40</span>시간</p>
+  </header>
+
+  <!-- 이번 주 요약 -->
+  <section class="card">
+    <div class="week-head">
+      <button id="prevWeek" aria-label="지난주">◀</button>
+      <div class="range"><span id="rangeText"></span><small id="rangeSub"></small></div>
+      <button id="nextWeek" aria-label="다음 주">▶</button>
+    </div>
+    <div class="summary">
+      <svg class="ring" viewBox="0 0 160 160" aria-hidden="true">
+        <circle class="bg" cx="80" cy="80" r="64"/>
+        <circle class="fg" id="ringFg" cx="80" cy="80" r="64"/>
+        <text x="80" y="88" font-size="34" id="ringPct">0%</text>
+      </svg>
+      <div class="stats">
+        <div class="big"><span id="weekTotal">0시간</span> <small>/ <span id="goalText">40</span>시간</small></div>
+        <p id="remainText"></p>
+        <p id="avgText" class="hint"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 기록하기 -->
+  <section class="card t2">
+    <h2>✏️ 공부 기록하기</h2>
+    <div class="form">
+      <label>날짜<input type="date" id="date"></label>
+      <label>공부 시간
+        <span class="time"><input type="number" id="hours" min="0" max="24" inputmode="numeric" placeholder="0"><span>시간</span>
+        <input type="number" id="mins" min="0" max="59" step="5" inputmode="numeric" placeholder="0"><span>분</span></span>
+      </label>
+      <div class="full">
+        <label>과목</label>
+        <div class="chips" id="chips"></div>
+        <div class="addsub">
+          <input id="newSub" placeholder="과목 추가 (예: 사회)" maxlength="12">
+          <button id="addSubBtn" class="small">+ 추가</button>
+        </div>
+      </div>
+      <button id="addBtn" class="primary full">기록 추가</button>
+    </div>
+    <p class="msg" id="formMsg"></p>
+  </section>
+
+  <!-- 요일별 -->
+  <section class="card t3">
+    <h2>🗓️ 요일별 기록 <small>X를 누르면 지워져요</small></h2>
+    <div class="days" id="days"></div>
+  </section>
+
+  <!-- 이번 주 과목별 -->
+  <section class="card">
+    <h2>📊 이번 주 과목별</h2>
+    <div class="bars" id="weekBars"></div>
+  </section>
+
+  <!-- 전체 누적 -->
+  <section class="card t2">
+    <h2>🏆 지금까지 누적</h2>
+    <div class="totals">
+      <div><b id="allTotal">0</b><span>총 공부 시간</span></div>
+      <div><b id="allDays">0</b><span>공부한 날</span></div>
+      <div><b id="allWeeks">0</b><span>목표 달성 주</span></div>
+    </div>
+    <div class="bars" id="allBars"></div>
+    <ul class="weeks" id="weekList"></ul>
+  </section>
+
+  <!-- 설정 -->
+  <section class="card t3">
+    <h2>⚙️ 설정 · 백업</h2>
+    <div class="form">
+      <label>주간 목표 (시간)<input type="number" id="goalInput" min="1" max="168"></label>
+      <label>&nbsp;<button id="goalBtn">목표 저장</button></label>
+    </div>
+    <div class="tools" style="margin-top:12px">
+      <button id="exportBtn">💾 백업 파일 받기</button>
+      <button id="importBtn">📂 백업 불러오기</button>
+      <input type="file" id="importFile" accept=".json,application/json" hidden>
+    </div>
+    <p class="hint">기록은 이 기기의 브라우저에만 저장됩니다. 폰을 바꾸거나 브라우저 기록을 지우면 사라지니 가끔 백업 파일을 받아 두세요.</p>
+  </section>
+</main>
+
+<script>
+const KEY = 'studyPlanner:v1';
+const DEFAULT_SUBJECTS = ['국어', '영어', '한국사', '행정법', '교육학'];
+const DAY_NAMES = ['월', '화', '수', '목', '금', '토', '일'];
+const COLORS = ['--c0', '--c1', '--c2', '--c3', '--c4', '--c5', '--c6', '--c7'];
+
+const $ = id => document.getElementById(id);
+
+function load() {
+  try {
+    const d = JSON.parse(localStorage.getItem(KEY));
+    if (d && Array.isArray(d.entries)) return {
+      entries: d.entries, subjects: Array.isArray(d.subjects) && d.subjects.length ? d.subjects : DEFAULT_SUBJECTS.slice(),
+      goal: Number(d.goal) > 0 ? Number(d.goal) : 40,
+    };
+  } catch (e) {}
+  return { entries: [], subjects: DEFAULT_SUBJECTS.slice(), goal: 40 };
+}
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(state)); }
+  catch (e) { $('formMsg').textContent = '저장에 실패했어요. 백업 파일을 받아 두세요.'; }
+}
+
+let state = load();
+let selected = state.subjects[0];
+let weekStart = mondayOf(new Date());
+
+// 날짜 도우미 (로컬 시간 기준, 월요일 시작)
+function pad(n) { return String(n).padStart(2, '0'); }
+function ymd(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+function parse(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
+function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+function mondayOf(d) { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); return addDays(x, -((x.getDay() + 6) % 7)); }
+function md(d) { return (d.getMonth() + 1) + '.' + d.getDate(); }
+
+function fmt(min) {
+  const h = Math.floor(min / 60), m = min % 60;
+  if (!h) return m + '분';
+  return m ? h + '시간 ' + m + '분' : h + '시간';
+}
+function fmtShort(min) { const h = Math.floor(min / 60), m = min % 60; return m ? h + ':' + pad(m) : h + 'h'; }
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function color(sub) {
+  let i = state.subjects.indexOf(sub);
+  if (i < 0) { i = 0; for (const c of sub) i += c.charCodeAt(0); }
+  return 'var(' + COLORS[i % COLORS.length] + ')';
+}
+function bySubject(list) {
+  const map = new Map();
+  for (const e of list) map.set(e.subject, (map.get(e.subject) || 0) + e.minutes);
+  return [...map].sort((a, b) => b[1] - a[1]);
+}
+
+function renderChips() {
+  $('chips').innerHTML = state.subjects.map(s =>
+    `<button class="chip${s === selected ? ' on' : ''}" data-s="${esc(s)}">${esc(s)}</button>`).join('');
+}
+
+function renderBars(el, list, emptyText) {
+  const rows = bySubject(list);
+  if (!rows.length) { el.innerHTML = `<p class="empty-note">${emptyText}</p>`; return; }
+  const max = rows[0][1];
+  const total = rows.reduce((a, r) => a + r[1], 0);
+  el.innerHTML = rows.map(([s, m]) => `
+    <div class="bar-row">
+      <span class="nm" title="${esc(s)}">${esc(s)}</span>
+      <div class="track"><div class="fill" style="width:${(m / max * 100).toFixed(1)}%;background:${color(s)}"></div></div>
+      <span class="v">${fmt(m)} <small style="color:var(--muted)">${Math.round(m / total * 100)}%</small></span>
+    </div>`).join('');
+}
+
+function render() {
+  const goalMin = state.goal * 60;
+  $('goalLabel').textContent = state.goal;
+  $('goalText').textContent = state.goal;
+  $('goalInput').value = state.goal;
+
+  // 이번 주 범위
+  const end = addDays(weekStart, 6);
+  const startS = ymd(weekStart), endS = ymd(end);
+  const thisMonday = mondayOf(new Date());
+  const diff = Math.round((weekStart - thisMonday) / (7 * 864e5));
+  $('rangeText').textContent = `${weekStart.getFullYear()}. ${md(weekStart)} ~ ${md(end)}`;
+  $('rangeSub').textContent = diff === 0 ? '이번 주' : diff < 0 ? `${-diff}주 전` : `${diff}주 후`;
+
+  const week = state.entries.filter(e => e.date >= startS && e.date <= endS);
+  const weekMin = week.reduce((a, e) => a + e.minutes, 0);
+
+  // 링
+  const pct = Math.min(100, Math.round(weekMin / goalMin * 100));
+  const C = 2 * Math.PI * 64;
+  const fg = $('ringFg');
+  fg.style.strokeDasharray = C;
+  fg.style.strokeDashoffset = C * (1 - Math.min(1, weekMin / goalMin));
+  fg.style.stroke = weekMin >= goalMin ? 'var(--ok)' : 'var(--accent)';
+  $('ringPct').textContent = Math.round(weekMin / goalMin * 100) + '%';
+  $('weekTotal').textContent = fmt(weekMin);
+
+  if (weekMin >= goalMin) {
+    $('remainText').innerHTML = `<span class="badge">🎉 목표 달성!</span> ${weekMin > goalMin ? fmt(weekMin - goalMin) + ' 더 했어요' : ''}`;
+  } else {
+    $('remainText').textContent = `목표까지 ${fmt(goalMin - weekMin)} 남았어요`;
+  }
+  // 남은 날 기준 하루 권장량 (이번 주일 때만)
+  if (diff === 0 && weekMin < goalMin) {
+    const todayIdx = (new Date().getDay() + 6) % 7;
+    const left = 7 - todayIdx;
+    $('avgText').textContent = `오늘 포함 ${left}일 남음 → 하루 평균 ${fmt(Math.ceil((goalMin - weekMin) / left))}씩 하면 돼요`;
+  } else {
+    $('avgText').textContent = `하루 평균 ${fmt(Math.round(weekMin / 7))}`;
+  }
+
+  // 요일별
+  const todayS = ymd(new Date());
+  let html = '';
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(weekStart, i), ds = ymd(d);
+    const items = week.filter(e => e.date === ds);
+    const sum = items.reduce((a, e) => a + e.minutes, 0);
+    const cls = i === 5 ? 'sat' : i === 6 ? 'sun' : '';
+    html += `<div class="day${ds === todayS ? ' today' : ''}">
+      <div class="day-top"><b class="${cls}">${DAY_NAMES[i]} <small style="font-size:.8rem;color:var(--muted)">${md(d)}</small></b>
+      <span class="sum">${sum ? fmt(sum) : ''}</span></div>
+      ${items.length ? '<ul>' + items.map(e => `<li><span class="dot" style="background:${color(e.subject)}"></span>
+        <span class="nm">${esc(e.subject)}</span><span>${fmtShort(e.minutes)}</span>
+        <button data-del="${e.id}" aria-label="삭제">✕</button></li>`).join('') + '</ul>'
+        : '<div class="empty">—</div>'}
+    </div>`;
+  }
+  $('days').innerHTML = html;
+
+  renderBars($('weekBars'), week, '이번 주 기록이 아직 없어요');
+
+  // 전체 누적
+  const all = state.entries;
+  const allMin = all.reduce((a, e) => a + e.minutes, 0);
+  $('allTotal').textContent = fmtShort(allMin);
+  $('allDays').textContent = new Set(all.map(e => e.date)).size + '일';
+
+  const weeks = new Map();
+  for (const e of all) {
+    const k = ymd(mondayOf(parse(e.date)));
+    weeks.set(k, (weeks.get(k) || 0) + e.minutes);
+  }
+  const weekRows = [...weeks].sort((a, b) => b[0].localeCompare(a[0]));
+  $('allWeeks').textContent = weekRows.filter(r => r[1] >= goalMin).length + '주';
+  renderBars($('allBars'), all, '아직 기록이 없어요. 위에서 첫 기록을 추가해 보세요!');
+  $('weekList').innerHTML = weekRows.length ? '<li><b class="hand" style="font-size:1.2rem">주별 기록</b><span></span></li>' + weekRows.map(([k, m]) => {
+    const s = parse(k);
+    return `<li><span>${md(s)} ~ ${md(addDays(s, 6))}</span><span>${fmt(m)} ${m >= goalMin ? '✅' : `<small style="color:var(--muted)">(${Math.round(m / goalMin * 100)}%)</small>`}</span></li>`;
+  }).join('') : '';
+}
+
+// 이벤트
+$('chips').addEventListener('click', e => {
+  const b = e.target.closest('.chip'); if (!b) return;
+  selected = b.dataset.s; renderChips();
+});
+$('addSubBtn').addEventListener('click', () => {
+  const name = $('newSub').value.trim();
+  if (!name) return;
+  if (!state.subjects.includes(name)) state.subjects.push(name);
+  selected = name; $('newSub').value = ''; save(); renderChips();
+});
+$('newSub').addEventListener('keydown', e => { if (e.key === 'Enter') $('addSubBtn').click(); });
+
+$('addBtn').addEventListener('click', () => {
+  const date = $('date').value;
+  const h = parseInt($('hours').value || '0', 10), m = parseInt($('mins').value || '0', 10);
+  const minutes = (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m);
+  const msg = $('formMsg');
+  if (!date) { msg.textContent = '날짜를 골라 주세요.'; return; }
+  if (!selected) { msg.textContent = '과목을 골라 주세요.'; return; }
+  if (minutes <= 0) { msg.textContent = '공부 시간을 적어 주세요.'; return; }
+  if (h < 0 || m < 0 || minutes > 24 * 60) { msg.textContent = '시간이 이상해요. 하루는 24시간까지예요.'; return; }
+  const dayTotal = state.entries.filter(e => e.date === date).reduce((a, e) => a + e.minutes, 0);
+  if (dayTotal + minutes > 24 * 60) { msg.textContent = '그날 합계가 24시간을 넘어요. 다시 확인해 주세요.'; return; }
+  state.entries.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), date, subject: selected, minutes });
+  save();
+  weekStart = mondayOf(parse(date));
+  $('hours').value = ''; $('mins').value = '';
+  msg.textContent = `${selected} ${fmt(minutes)} 기록했어요 ✔`;
+  render();
+});
+
+$('days').addEventListener('click', e => {
+  const b = e.target.closest('[data-del]'); if (!b) return;
+  const item = state.entries.find(x => x.id === b.dataset.del);
+  if (!item || !confirm(`${item.subject} ${fmt(item.minutes)} 기록을 지울까요?`)) return;
+  state.entries = state.entries.filter(x => x !== item);
+  save(); render();
+});
+
+$('prevWeek').addEventListener('click', () => { weekStart = addDays(weekStart, -7); render(); });
+$('nextWeek').addEventListener('click', () => { weekStart = addDays(weekStart, 7); render(); });
+
+$('goalBtn').addEventListener('click', () => {
+  const g = Number($('goalInput').value);
+  if (!(g > 0 && g <= 168)) { alert('1~168 사이로 적어 주세요.'); return; }
+  state.goal = g; save(); render();
+});
+
+$('exportBtn').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `공부기록_${ymd(new Date())}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+$('importBtn').addEventListener('click', () => $('importFile').click());
+$('importFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const d = JSON.parse(await f.text());
+    if (!Array.isArray(d.entries)) throw 0;
+    const entries = d.entries.filter(x => x && /^\d{4}-\d{2}-\d{2}$/.test(x.date) && typeof x.subject === 'string' && Number(x.minutes) > 0)
+      .map(x => ({ id: String(x.id || Math.random().toString(36).slice(2)), date: x.date, subject: x.subject, minutes: Math.round(Number(x.minutes)) }));
+    if (!confirm(`기록 ${entries.length}개를 불러올까요? 지금 기록은 덮어써져요.`)) return;
+    state = { entries, subjects: Array.isArray(d.subjects) && d.subjects.length ? d.subjects : DEFAULT_SUBJECTS.slice(), goal: Number(d.goal) > 0 ? Number(d.goal) : 40 };
+    for (const x of entries) if (!state.subjects.includes(x.subject)) state.subjects.push(x.subject);
+    selected = state.subjects[0];
+    save(); renderChips(); render();
+  } catch (err) { alert('백업 파일을 읽지 못했어요.'); }
+  e.target.value = '';
+});
+
+$('date').value = ymd(new Date());
+renderChips();
+render();
+</script>
+</body>
+</html>
