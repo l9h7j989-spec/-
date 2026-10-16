@@ -49,6 +49,9 @@ header h1 { font-size: 2.2rem; margin: 0; color: var(--accent-deep); }
 header p { margin: 0; color: var(--muted); }
 .nav { display: flex; justify-content: space-between; font-size: .9rem; margin-bottom: 6px; }
 .nav a { color: var(--muted); text-decoration: none; }
+.sync { font-size: .82rem; padding: 1px 10px; border-radius: 999px; background: var(--paper); border: 2px solid var(--line); color: var(--muted); }
+.sync.ok { color: var(--ok); border-color: var(--ok); }
+.sync.warn { color: var(--accent-deep); border-color: var(--accent); }
 
 .card { position: relative; background: var(--paper); border-radius: 18px; padding: 22px 18px 18px; margin: 26px 0 0; box-shadow: var(--shadow); }
 .card::before { content: ""; position: absolute; top: -11px; left: 50%; width: 110px; height: 22px; transform: translateX(-50%) rotate(-2deg); background: var(--tape1); border-radius: 3px; }
@@ -144,7 +147,7 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1p
 </head>
 <body>
 <main>
-  <div class="nav"><a href="index.html">📝 문제풀이로</a><span></span></div>
+  <div class="nav"><a href="index.html">📝 문제풀이로</a><span id="syncStatus" class="sync"></span></div>
   <header>
     <h1>📚 나연이의 공부 플래너</h1>
     <p>순공 시간 기록 · 주간 목표 <span id="goalLabel">40</span>시간</p>
@@ -224,17 +227,26 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1p
       <label>주간 목표 (시간)<input type="number" id="goalInput" min="1" max="168"></label>
       <label>&nbsp;<button id="goalBtn">목표 저장</button></label>
     </div>
+    <div id="sheetBox" style="margin-top:14px">
+      <label class="hint" for="sheetUrl" style="display:block;margin-bottom:4px">☁️ 구글 시트 주소 (웹 앱 URL)</label>
+      <div class="addsub"><input id="sheetUrl" placeholder="https://script.google.com/macros/s/…/exec"><button id="sheetBtn" class="small">연결</button></div>
+    </div>
     <div class="tools" style="margin-top:12px">
       <button id="exportBtn">💾 백업 파일 받기</button>
       <button id="importBtn">📂 백업 불러오기</button>
       <input type="file" id="importFile" accept=".json,application/json" hidden>
     </div>
-    <p class="hint">기록은 이 기기의 브라우저에만 저장됩니다. 폰을 바꾸거나 브라우저 기록을 지우면 사라지니 가끔 백업 파일을 받아 두세요.</p>
+    <p class="hint" id="storeHint"></p>
   </section>
 </main>
 
 <script>
+// 구글 시트 웹 앱 주소. 여기에 넣어 두면 어느 기기에서 열어도 같은 기록을 씀 (README 참고)
+const SHEET_URL = '';
+
 const KEY = 'studyPlanner:v1';
+const URL_KEY = 'studyPlanner:sheetUrl';
+const PENDING_KEY = 'studyPlanner:pending';
 const DEFAULT_SUBJECTS = ['국어', '영어', '한국사', '행정법', '교육학'];
 const DAY_NAMES = ['월', '화', '수', '목', '금', '토', '일'];
 const COLORS = ['--c0', '--c1', '--c2', '--c3', '--c4', '--c5', '--c6', '--c7'];
@@ -254,6 +266,72 @@ function load() {
 function save() {
   try { localStorage.setItem(KEY, JSON.stringify(state)); }
   catch (e) { $('formMsg').textContent = '저장에 실패했어요. 백업 파일을 받아 두세요.'; }
+}
+
+// 로컬 저장은 빠르게 띄우기 위한 사본. 진짜 저장소는 구글 시트.
+function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function sheetUrl() { return SHEET_URL || lsGet(URL_KEY) || ''; }
+let pending = (() => { try { return JSON.parse(lsGet(PENDING_KEY)) || []; } catch (e) { return []; } })();
+let syncing = false;
+
+function applyLocal(op) {
+  if (op.type === 'add') { if (!state.entries.some(e => e.id === op.entry.id)) state.entries.push(op.entry); }
+  else if (op.type === 'del') state.entries = state.entries.filter(e => e.id !== op.id);
+  else if (op.type === 'settings') {
+    if (op.goal != null) state.goal = op.goal;
+    if (Array.isArray(op.subjects)) state.subjects = op.subjects.slice();
+  }
+}
+// 바꾼 내용을 화면에 바로 반영하고, 시트로 보낼 목록에 쌓는다
+function commit(...ops) {
+  for (const op of ops) applyLocal(op);
+  if (sheetUrl()) { pending.push(...ops); lsSet(PENDING_KEY, JSON.stringify(pending)); }
+  save(); render(); flush();
+}
+async function flush() {
+  const url = sheetUrl();
+  if (!url || syncing) { setStatus(); return; }
+  syncing = true; setStatus();
+  const sent = pending.length;
+  try {
+    const res = await fetch(url, { method: 'POST', body: JSON.stringify({ ops: pending.slice(0, sent) }) });
+    const d = await res.json();
+    if (d.error || !Array.isArray(d.entries)) throw new Error(d.error || 'bad response');
+    pending = pending.slice(sent);
+    lsSet(PENDING_KEY, JSON.stringify(pending));
+    state.entries = d.entries;
+    state.goal = Number(d.goal) > 0 ? Number(d.goal) : state.goal;
+    if (Array.isArray(d.subjects) && d.subjects.length) state.subjects = d.subjects;
+    else if (!pending.some(op => op.type === 'settings')) pending.push({ type: 'settings', goal: state.goal, subjects: state.subjects }); // 새 시트: 설정 처음 저장
+    for (const op of pending) applyLocal(op); // 보내는 사이에 새로 생긴 것
+    if (!state.subjects.includes(selected)) selected = state.subjects[0];
+    syncError = false;
+    save(); renderChips(); render();
+  } catch (e) {
+    syncError = true;
+  }
+  syncing = false; setStatus();
+  if (pending.length && !syncError) flush();
+}
+let syncError = false;
+function setStatus() {
+  const el = $('syncStatus');
+  const url = sheetUrl();
+  $('sheetBox').hidden = !!SHEET_URL;
+  if (!SHEET_URL) $('sheetUrl').value = url;
+  if (!url) {
+    el.className = 'sync warn'; el.textContent = '⚠️ 이 기기에만 저장 중';
+    $('storeHint').textContent = '아직 구글 시트가 연결되지 않아 기록이 이 브라우저에만 있어요. 방문 기록을 지우면 사라지니 위에 시트 주소를 넣어 연결해 주세요.';
+  } else {
+    $('storeHint').textContent = '기록은 구글 시트에 저장돼요. 방문 기록을 지우거나 기기를 바꿔도 남아 있어요. 백업 파일은 혹시 몰라 받아 두는 용도예요.';
+    if (syncing) { el.className = 'sync'; el.textContent = '☁️ 저장 중…'; }
+    else if (syncError) { el.className = 'sync warn'; el.textContent = pending.length ? `⚠️ 연결 안 됨 · ${pending.length}개 대기` : '⚠️ 시트 연결 안 됨'; }
+    else { el.className = 'sync ok'; el.textContent = '☁️ 시트에 저장됨'; }
+  }
+}
+function allAsOps() {
+  return state.entries.map(e => ({ type: 'add', entry: e }));
 }
 
 let state = load();
@@ -394,8 +472,9 @@ $('chips').addEventListener('click', e => {
 $('addSubBtn').addEventListener('click', () => {
   const name = $('newSub').value.trim();
   if (!name) return;
-  if (!state.subjects.includes(name)) state.subjects.push(name);
-  selected = name; $('newSub').value = ''; save(); renderChips();
+  selected = name; $('newSub').value = '';
+  if (!state.subjects.includes(name)) commit({ type: 'settings', subjects: [...state.subjects, name] });
+  renderChips();
 });
 $('newSub').addEventListener('keydown', e => { if (e.key === 'Enter') $('addSubBtn').click(); });
 
@@ -410,20 +489,17 @@ $('addBtn').addEventListener('click', () => {
   if (h < 0 || m < 0 || minutes > 24 * 60) { msg.textContent = '시간이 이상해요. 하루는 24시간까지예요.'; return; }
   const dayTotal = state.entries.filter(e => e.date === date).reduce((a, e) => a + e.minutes, 0);
   if (dayTotal + minutes > 24 * 60) { msg.textContent = '그날 합계가 24시간을 넘어요. 다시 확인해 주세요.'; return; }
-  state.entries.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), date, subject: selected, minutes });
-  save();
   weekStart = mondayOf(parse(date));
   $('hours').value = ''; $('mins').value = '';
   msg.textContent = `${selected} ${fmt(minutes)} 기록했어요 ✔`;
-  render();
+  commit({ type: 'add', entry: { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), date, subject: selected, minutes } });
 });
 
 $('days').addEventListener('click', e => {
   const b = e.target.closest('[data-del]'); if (!b) return;
   const item = state.entries.find(x => x.id === b.dataset.del);
   if (!item || !confirm(`${item.subject} ${fmt(item.minutes)} 기록을 지울까요?`)) return;
-  state.entries = state.entries.filter(x => x !== item);
-  save(); render();
+  commit({ type: 'del', id: item.id });
 });
 
 $('prevWeek').addEventListener('click', () => { weekStart = addDays(weekStart, -7); render(); });
@@ -432,7 +508,7 @@ $('nextWeek').addEventListener('click', () => { weekStart = addDays(weekStart, 7
 $('goalBtn').addEventListener('click', () => {
   const g = Number($('goalInput').value);
   if (!(g > 0 && g <= 168)) { alert('1~168 사이로 적어 주세요.'); return; }
-  state.goal = g; save(); render();
+  commit({ type: 'settings', goal: g });
 });
 
 $('exportBtn').addEventListener('click', () => {
@@ -451,18 +527,37 @@ $('importFile').addEventListener('change', async e => {
     if (!Array.isArray(d.entries)) throw 0;
     const entries = d.entries.filter(x => x && /^\d{4}-\d{2}-\d{2}$/.test(x.date) && typeof x.subject === 'string' && Number(x.minutes) > 0)
       .map(x => ({ id: String(x.id || Math.random().toString(36).slice(2)), date: x.date, subject: x.subject, minutes: Math.round(Number(x.minutes)) }));
-    if (!confirm(`기록 ${entries.length}개를 불러올까요? 지금 기록은 덮어써져요.`)) return;
-    state = { entries, subjects: Array.isArray(d.subjects) && d.subjects.length ? d.subjects : DEFAULT_SUBJECTS.slice(), goal: Number(d.goal) > 0 ? Number(d.goal) : 40 };
-    for (const x of entries) if (!state.subjects.includes(x.subject)) state.subjects.push(x.subject);
-    selected = state.subjects[0];
-    save(); renderChips(); render();
+    if (!confirm(`기록 ${entries.length}개를 지금 기록에 합칠까요? (이미 있는 기록은 건너뛰어요)`)) return;
+    const subjects = state.subjects.slice();
+    for (const x of [...(Array.isArray(d.subjects) ? d.subjects : []), ...entries.map(x => x.subject)])
+      if (typeof x === 'string' && !subjects.includes(x)) subjects.push(x);
+    commit({ type: 'settings', subjects }, ...entries.map(entry => ({ type: 'add', entry })));
+    renderChips();
   } catch (err) { alert('백업 파일을 읽지 못했어요.'); }
   e.target.value = '';
+});
+
+$('sheetBtn').addEventListener('click', () => {
+  const url = $('sheetUrl').value.trim();
+  if (url && !/^https:\/\/script\.google\.com\/.+\/exec$/.test(url)) { alert('주소는 https://script.google.com/ 으로 시작하고 /exec 로 끝나야 해요.'); return; }
+  lsSet(URL_KEY, url);
+  if (url) {
+    // 이 기기에 있던 기록을 시트로 올림 (이미 있는 건 시트가 건너뜀)
+    pending = [...pending, ...allAsOps()]; lsSet(PENDING_KEY, JSON.stringify(pending));
+  }
+  syncError = false; flush();
 });
 
 $('date').value = ymd(new Date());
 renderChips();
 render();
+if (SHEET_URL && lsGet(URL_KEY) !== SHEET_URL) {
+  // 주소가 박힌 버전을 이 기기에서 처음 열 때: 기존 로컬 기록도 함께 올림
+  if (state.entries.length) pending = [...pending, ...allAsOps()];
+  lsSet(URL_KEY, SHEET_URL); lsSet(PENDING_KEY, JSON.stringify(pending));
+}
+flush();
+window.addEventListener('online', () => { syncError = false; flush(); });
 </script>
 </body>
 </html>
