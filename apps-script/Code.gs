@@ -7,7 +7,16 @@ const LOG = '기록';
 const SET = '설정';
 
 function doGet() {
-  return json_(readAll_());
+  // 읽기도 잠금: 처음 시트를 만들 때 요청 두 개가 겹치면 같은 시트를 두 번 만들려다 실패함
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    return json_(readAll_());
+  } catch (err) {
+    return json_({ error: String(err) });
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function doPost(e) {
@@ -59,9 +68,22 @@ function readAll_() {
 
 function sheet_(name, header) {
   const ss = SpreadsheetApp.getActive();
-  let sh = ss.getSheetByName(name);
-  if (!sh) { sh = ss.insertSheet(name); sh.appendRow(header); sh.setFrozenRows(1); }
+  let sh = ss.getSheetByName(name) || findSheet_(ss, name);
+  if (sh) return sh;
+  try {
+    sh = ss.insertSheet(name);
+  } catch (err) {
+    // 같은 이름 시트가 이미 있다고 하면 그 시트를 다시 찾아 씀
+    sh = findSheet_(ss, name);
+    if (!sh) throw err;
+    return sh;
+  }
+  sh.appendRow(header);
+  sh.setFrozenRows(1);
   return sh;
+}
+function findSheet_(ss, name) {
+  return ss.getSheets().find(x => x.getName().trim().normalize() === name.normalize()) || null;
 }
 function findRow_(sh, id) {
   const ids = sh.getRange(1, 1, sh.getLastRow(), 1).getValues();
