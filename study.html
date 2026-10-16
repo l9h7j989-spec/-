@@ -49,7 +49,7 @@ header h1 { font-size: 2.2rem; margin: 0; color: var(--accent-deep); }
 header p { margin: 0; color: var(--muted); }
 .nav { display: flex; justify-content: space-between; font-size: .9rem; margin-bottom: 6px; }
 .nav a { color: var(--muted); text-decoration: none; }
-.sync { font-size: .82rem; padding: 1px 10px; border-radius: 999px; background: var(--paper); border: 2px solid var(--line); color: var(--muted); }
+.sync { cursor: pointer; font-size: .82rem; padding: 1px 10px; border-radius: 999px; background: var(--paper); border: 2px solid var(--line); color: var(--muted); }
 .sync.ok { color: var(--ok); border-color: var(--ok); }
 .sync.warn { color: var(--accent-deep); border-color: var(--accent); }
 
@@ -186,10 +186,6 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1p
       <div class="full">
         <label>과목</label>
         <div class="chips" id="chips"></div>
-        <div class="addsub">
-          <input id="newSub" placeholder="과목 추가 (예: 사회)" maxlength="12">
-          <button id="addSubBtn" class="small">+ 추가</button>
-        </div>
       </div>
       <button id="addBtn" class="primary full">기록 추가</button>
     </div>
@@ -247,7 +243,7 @@ const SHEET_URL = 'https://script.google.com/macros/s/AKfycbxqJGHoHJ-4mA-qJmRTMK
 const KEY = 'studyPlanner:v1';
 const URL_KEY = 'studyPlanner:sheetUrl';
 const PENDING_KEY = 'studyPlanner:pending';
-const DEFAULT_SUBJECTS = ['국어', '영어', '한국사', '행정법', '교육학'];
+const DEFAULT_SUBJECTS = ['국어', '영어', '행정법', '교육학'];
 const DAY_NAMES = ['월', '화', '수', '목', '금', '토', '일'];
 const COLORS = ['--c0', '--c1', '--c2', '--c3', '--c4', '--c5', '--c6', '--c7'];
 
@@ -257,7 +253,7 @@ function load() {
   try {
     const d = JSON.parse(localStorage.getItem(KEY));
     if (d && Array.isArray(d.entries)) return {
-      entries: d.entries, subjects: Array.isArray(d.subjects) && d.subjects.length ? d.subjects : DEFAULT_SUBJECTS.slice(),
+      entries: d.entries, subjects: DEFAULT_SUBJECTS.slice(),
       goal: Number(d.goal) > 0 ? Number(d.goal) : 40,
     };
   } catch (e) {}
@@ -280,7 +276,6 @@ function applyLocal(op) {
   else if (op.type === 'del') state.entries = state.entries.filter(e => e.id !== op.id);
   else if (op.type === 'settings') {
     if (op.goal != null) state.goal = op.goal;
-    if (Array.isArray(op.subjects)) state.subjects = op.subjects.slice();
   }
 }
 // 바꾼 내용을 화면에 바로 반영하고, 시트로 보낼 목록에 쌓는다
@@ -302,19 +297,19 @@ async function flush() {
     lsSet(PENDING_KEY, JSON.stringify(pending));
     state.entries = d.entries;
     state.goal = Number(d.goal) > 0 ? Number(d.goal) : state.goal;
-    if (Array.isArray(d.subjects) && d.subjects.length) state.subjects = d.subjects;
-    else if (!pending.some(op => op.type === 'settings')) pending.push({ type: 'settings', goal: state.goal, subjects: state.subjects }); // 새 시트: 설정 처음 저장
     for (const op of pending) applyLocal(op); // 보내는 사이에 새로 생긴 것
-    if (!state.subjects.includes(selected)) selected = state.subjects[0];
-    syncError = false;
+    syncError = false; syncErrMsg = '';
     save(); renderChips(); render();
   } catch (e) {
     syncError = true;
+    syncErrMsg = e instanceof TypeError
+      ? '시트 주소에 접속하지 못했어요. Apps Script 배포에서 "액세스 권한이 있는 사용자"가 "모든 사용자"인지 확인해 주세요.'
+      : '시트가 오류를 보냈어요: ' + e.message;
   }
   syncing = false; setStatus();
   if (pending.length && !syncError) flush();
 }
-let syncError = false;
+let syncError = false, syncErrMsg = '';
 function setStatus() {
   const el = $('syncStatus');
   const url = sheetUrl();
@@ -324,7 +319,9 @@ function setStatus() {
     el.className = 'sync warn'; el.textContent = '⚠️ 이 기기에만 저장 중';
     $('storeHint').textContent = '아직 구글 시트가 연결되지 않아 기록이 이 브라우저에만 있어요. 방문 기록을 지우면 사라지니 위에 시트 주소를 넣어 연결해 주세요.';
   } else {
-    $('storeHint').textContent = '기록은 구글 시트에 저장돼요. 방문 기록을 지우거나 기기를 바꿔도 남아 있어요. 백업 파일은 혹시 몰라 받아 두는 용도예요.';
+    $('storeHint').textContent = syncError && syncErrMsg ? '⚠️ ' + syncErrMsg
+      : '기록은 구글 시트에 저장돼요. 방문 기록을 지우거나 기기를 바꿔도 남아 있어요. 백업 파일은 혹시 몰라 받아 두는 용도예요.';
+    el.title = syncError ? syncErrMsg : '';
     if (syncing) { el.className = 'sync'; el.textContent = '☁️ 저장 중…'; }
     else if (syncError) { el.className = 'sync warn'; el.textContent = pending.length ? `⚠️ 연결 안 됨 · ${pending.length}개 대기` : '⚠️ 시트 연결 안 됨'; }
     else { el.className = 'sync ok'; el.textContent = '☁️ 시트에 저장됨'; }
@@ -469,14 +466,7 @@ $('chips').addEventListener('click', e => {
   const b = e.target.closest('.chip'); if (!b) return;
   selected = b.dataset.s; renderChips();
 });
-$('addSubBtn').addEventListener('click', () => {
-  const name = $('newSub').value.trim();
-  if (!name) return;
-  selected = name; $('newSub').value = '';
-  if (!state.subjects.includes(name)) commit({ type: 'settings', subjects: [...state.subjects, name] });
-  renderChips();
-});
-$('newSub').addEventListener('keydown', e => { if (e.key === 'Enter') $('addSubBtn').click(); });
+$('syncStatus').addEventListener('click', () => { if (syncError && syncErrMsg) alert(syncErrMsg); else { syncError = false; flush(); } });
 
 $('addBtn').addEventListener('click', () => {
   const date = $('date').value;
@@ -528,11 +518,7 @@ $('importFile').addEventListener('change', async e => {
     const entries = d.entries.filter(x => x && /^\d{4}-\d{2}-\d{2}$/.test(x.date) && typeof x.subject === 'string' && Number(x.minutes) > 0)
       .map(x => ({ id: String(x.id || Math.random().toString(36).slice(2)), date: x.date, subject: x.subject, minutes: Math.round(Number(x.minutes)) }));
     if (!confirm(`기록 ${entries.length}개를 지금 기록에 합칠까요? (이미 있는 기록은 건너뛰어요)`)) return;
-    const subjects = state.subjects.slice();
-    for (const x of [...(Array.isArray(d.subjects) ? d.subjects : []), ...entries.map(x => x.subject)])
-      if (typeof x === 'string' && !subjects.includes(x)) subjects.push(x);
-    commit({ type: 'settings', subjects }, ...entries.map(entry => ({ type: 'add', entry })));
-    renderChips();
+    commit(...entries.map(entry => ({ type: 'add', entry })));
   } catch (err) { alert('백업 파일을 읽지 못했어요.'); }
   e.target.value = '';
 });
