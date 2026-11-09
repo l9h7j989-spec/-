@@ -131,3 +131,10 @@ label.inline { display: flex; align-items: center; gap: 8px; margin: 6px 0 10px;
 details.sub-details { background: var(--bg); border-style: dashed; margin: 8px 0; padding: 8px 12px; }
 details.sub-details summary { font-weight: 600; font-size: 14px; color: var(--sub); }
 .stampbox { margin: 8px 0; font-size: 14px; color: var(--sub); } .stamp-prev { width: 64px; height: 64px; object-fit: contain; vertical-align: middle; background: #fff; border-radius: 8px; }
+
+.dot.rec { background: var(--pri); }
+.selbar { display: flex; flex-wrap: wrap; gap: 6px; position: sticky; top: 56px; z-index: 3; background: var(--bg); padding: 6px 0; }
+.card.picked { border-color: var(--pri); background: var(--pri-weak); }
+.card .pick { width: 22px; height: 22px; margin-right: 8px; accent-color: var(--pri); pointer-events: none; }
+.card .grow { flex: 1; }
+.btn[disabled] { opacity: .45; }
