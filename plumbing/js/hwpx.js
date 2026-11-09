@@ -134,7 +134,7 @@
     const sections = Object.keys(zip.files).filter((n) => /^Contents\/section\d+\.xml$/.test(n));
     if (!sections.length) throw new Error('HWPX 양식에서 본문(section)을 찾지 못했습니다.');
     const itemData = items.map((it, i) => {
-      const o = { ...it, no: it.no ?? i + 1 };
+      const o = { ...it, no: it.no ?? String(i + 1) };
       o.품명 = o.name; o.규격 = o.spec; o.수량 = o.qty; o.단위 = o.unit;
       o.단가 = o.price; o.금액 = o.amount; o.비고 = o.note;
       return o;
@@ -150,6 +150,11 @@
       let out = ser.serializeToString(doc);
       if (!out.startsWith('<?xml')) out = '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>' + out;
       zip.file(name, out);
+    }
+    // 도장 그림 바꾸기 (양식 안 BinData/stamp.* 를 사용자 도장 PNG 로)
+    if (env.stamp) {
+      const stampName = Object.keys(zip.files).find((n) => /^BinData\/stamp\.\w+$/i.test(n));
+      if (stampName) zip.file(stampName, env.stamp);
     }
     // 미리보기 텍스트 갱신(선택)
     if (zip.file('Preview/PrvText.txt')) zip.file('Preview/PrvText.txt', String(data.title || '견적서'));
