@@ -1,0 +1,649 @@
+/* 배관·누수 사업 관리 앱 (작업일지 · 수금 · 견적서 · 밴드 공유) */
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const { won, parseMoney } = EstCore;
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
+const fmtDate = (s) => { if (!s) return ''; const d = new Date(s + 'T00:00'); return `${d.getMonth() + 1}/${d.getDate()}(${WEEK[d.getDay()]})`; };
+
+const JOB_TYPES = ['누수탐지', '누수보수', '배관교체', '막힘·뚫음', '수전·변기', '보일러·난방', '방수', '동파', '기타'];
+const PAY_METHODS = ['계좌이체', '현금', '카드', '기타'];
+const DEFAULT_SETTINGS = {
+  company: { name: '', owner: '', bizno: '', phone: '', address: '', account: '' },
+  presets: [
+    { name: '누수탐지', spec: '', unit: '식', price: 150000 },
+    { name: '출장비', spec: '', unit: '회', price: 30000 },
+    { name: 'PB관 교체', spec: '15A', unit: 'm', price: 12000 },
+    { name: '배관 부분교체', spec: '', unit: '개소', price: 100000 },
+    { name: '하수구 막힘 뚫음', spec: '', unit: '식', price: 80000 },
+    { name: '타일 철거 및 복구', spec: '', unit: '㎡', price: 60000 },
+  ],
+  bandTemplate: '[{유형}] {지역}\n{내용}\n\n#누수 #배관 #{유형}',
+  smsTemplate: '안녕하세요 {상호}입니다. {날짜} {내용} 공사대금 {금액}원 입금 부탁드립니다.\n{계좌}',
+  asMonths: 12,
+};
+
+const state = { settings: null, jobs: [], todos: [], estimates: [], calMonth: new Date(), calSel: ymd(), moneyMonth: ymd().slice(0, 7) };
+
+/* ───────── 공통 ───────── */
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2200);
+}
+function payStatus(j) {
+  const amt = Number(j.amount) || 0, paid = Number(j.paid) || 0;
+  if (!amt) return { key: 'none', label: '금액없음' };
+  if (paid >= amt) return { key: 'paid', label: '입금완료' };
+  if (paid > 0) return { key: 'part', label: `부분 (${won(amt - paid)} 남음)` };
+  return { key: 'unpaid', label: '미수' };
+}
+const unpaidOf = (j) => Math.max(0, (Number(j.amount) || 0) - (Number(j.paid) || 0));
+function fill(tpl, map) { return tpl.replace(/\{([^{}]+)\}/g, (m, k) => (k in map ? map[k] : m)); }
+function areaOf(addr) { // 개인정보 보호: 시/구/동 까지만
+  if (!addr) return '';
+  const parts = addr.split(/\s+/).filter((p) => /(시|도|구|군|동|읍|면)$/.test(p));
+  return parts.slice(0, 3).join(' ');
+}
+async function loadAll() {
+  state.settings = Object.assign(structuredClone(DEFAULT_SETTINGS), await DB.getKV('settings', {}));
+  [state.jobs, state.todos, state.estimates] = await Promise.all([DB.all('jobs'), DB.all('todos'), DB.all('estimates')]);
+}
+const saveSettings = () => DB.setKV('settings', state.settings);
+
+function openSheet(html, onMount) {
+  const sh = $('#sheet');
+  $('#sheet-body').innerHTML = html;
+  sh.classList.add('open');
+  document.body.classList.add('noscroll');
+  $('#sheet-body').scrollTop = 0;
+  onMount && onMount($('#sheet-body'));
+}
+function closeSheet() { $('#sheet').classList.remove('open'); document.body.classList.remove('noscroll'); render(); }
+
+/* ───────── 라우팅 ───────── */
+const VIEWS = { home: renderHome, cal: renderCal, est: renderEstList, money: renderMoney, more: renderMore };
+function route() { return (location.hash.slice(1) || 'home').split('/')[0]; }
+function render() {
+  const v = VIEWS[route()] ? route() : 'home';
+  $$('#nav a').forEach((a) => a.classList.toggle('on', a.dataset.v === v));
+  VIEWS[v]($('#view'));
+}
+
+/* ───────── 작업 카드 ───────── */
+function jobCard(j) {
+  const ps = payStatus(j);
+  const done = (j.checklist || []).filter((c) => c.d).length, total = (j.checklist || []).length;
+  return `<div class="card job" data-job="${j.id}">
+    <div class="row"><b>${esc(j.customer || '(고객 미입력)')}</b><span class="tag ${ps.key}">${esc(ps.label)}</span></div>
+    <div class="sub">${j.time ? esc(j.time) + ' · ' : ''}${esc(j.type || '')} ${j.amount ? '· ' + won(j.amount) + '원' : ''}</div>
+    ${j.address ? `<div class="sub">📍 ${esc(j.address)}</div>` : ''}
+    ${j.desc ? `<div class="desc">${esc(j.desc).slice(0, 80)}</div>` : ''}
+    <div class="meta">${total ? `☑ ${done}/${total}` : ''} ${(j.photos || []).length ? `📷 ${j.photos.length}` : ''} ${j.bandShared ? '· 밴드✔' : ''} ${j.status === 'done' ? '· 작업완료' : ''}</div>
+  </div>`;
+}
+function bindJobCards(el) { $$('[data-job]', el).forEach((c) => c.onclick = () => editJob(c.dataset.job)); }
+
+/* ───────── 할일 ───────── */
+function todoList(list, opts = {}) {
+  if (!list.length) return `<p class="empty">${opts.empty || '할 일이 없습니다'}</p>`;
+  return `<ul class="todos">${list.map((t) => `<li class="${t.done ? 'done' : ''}">
+    <label><input type="checkbox" data-todo="${t.id}" ${t.done ? 'checked' : ''}> <span>${esc(t.text)}</span></label>
+    ${opts.showDate ? `<small>${fmtDate(t.date)}</small>` : ''}<button class="x" data-deltodo="${t.id}" aria-label="삭제">×</button></li>`).join('')}</ul>`;
+}
+function bindTodos(el) {
+  $$('[data-todo]', el).forEach((c) => c.onchange = async () => {
+    const t = state.todos.find((x) => x.id === c.dataset.todo); t.done = c.checked; await DB.put('todos', t); render();
+  });
+  $$('[data-deltodo]', el).forEach((b) => b.onclick = async () => {
+    await DB.del('todos', b.dataset.deltodo); state.todos = state.todos.filter((x) => x.id !== b.dataset.deltodo); render();
+  });
+  $$('form.addtodo', el).forEach((f) => f.onsubmit = async (e) => {
+    e.preventDefault(); const text = f.text.value.trim(); if (!text) return;
+    const t = { id: uid(), date: f.dataset.date, text, done: false }; await DB.put('todos', t); state.todos.push(t); render();
+  });
+}
+const addTodoForm = (date) => `<form class="addtodo" data-date="${date}"><input name="text" placeholder="할 일 추가 (예: 자재 주문, 김사장님 전화)" autocomplete="off"><button>추가</button></form>`;
+
+/* ───────── 홈 ───────── */
+function renderHome(el) {
+  const today = ymd(), month = today.slice(0, 7);
+  const todayJobs = state.jobs.filter((j) => j.date === today).sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+  const monthJobs = state.jobs.filter((j) => (j.date || '').startsWith(month));
+  const sales = monthJobs.reduce((a, j) => a + (Number(j.amount) || 0), 0);
+  const unpaid = state.jobs.reduce((a, j) => a + unpaidOf(j), 0);
+  const unpaidCnt = state.jobs.filter((j) => unpaidOf(j) > 0).length;
+  const todayTodos = state.todos.filter((t) => t.date === today);
+  const overdue = state.todos.filter((t) => !t.done && t.date < today).sort((a, b) => a.date.localeCompare(b.date));
+  const asSoon = state.jobs.filter((j) => j.asUntil && j.asUntil >= today && j.asUntil <= ymd(new Date(Date.now() + 30 * 864e5)));
+  el.innerHTML = `
+    <h2>${fmtDate(today)} 오늘</h2>
+    <div class="stats">
+      <div class="stat"><small>이번 달 매출</small><b>${won(sales)}</b></div>
+      <div class="stat warn" onclick="location.hash='money'"><small>받을 돈 (${unpaidCnt}건)</small><b>${won(unpaid)}</b></div>
+    </div>
+    <div class="quick"><button class="btn primary" id="q-job">＋ 작업 기록</button><button class="btn" id="q-est">＋ 견적서</button></div>
+    <h3>오늘 작업 <small>${todayJobs.length}건</small></h3>
+    ${todayJobs.map(jobCard).join('') || '<p class="empty">오늘 기록된 작업이 없습니다</p>'}
+    <h3>오늘 할 일</h3>
+    ${todoList(todayTodos)}
+    ${addTodoForm(today)}
+    ${overdue.length ? `<h3 class="red">밀린 할 일 <small>${overdue.length}</small></h3>${todoList(overdue, { showDate: true })}` : ''}
+    ${asSoon.length ? `<h3>A/S 기간 곧 끝남 (30일 이내)</h3>${asSoon.map(jobCard).join('')}` : ''}`;
+  $('#q-job').onclick = () => editJob(null, today);
+  $('#q-est').onclick = () => editEstimate(null);
+  bindJobCards(el); bindTodos(el);
+}
+
+/* ───────── 달력 ───────── */
+function renderCal(el) {
+  const m = state.calMonth, y = m.getFullYear(), mo = m.getMonth();
+  const first = new Date(y, mo, 1), startDow = first.getDay(), days = new Date(y, mo + 1, 0).getDate();
+  const today = ymd();
+  let cells = '';
+  for (let i = 0; i < startDow; i++) cells += '<div class="cell blank"></div>';
+  for (let d = 1; d <= days; d++) {
+    const ds = `${y}-${pad(mo + 1)}-${pad(d)}`;
+    const js = state.jobs.filter((j) => j.date === ds);
+    const ts = state.todos.filter((t) => t.date === ds && !t.done);
+    const sum = js.reduce((a, j) => a + (Number(j.amount) || 0), 0);
+    const hasUnpaid = js.some((j) => unpaidOf(j) > 0);
+    const dow = (startDow + d - 1) % 7;
+    cells += `<div class="cell ${ds === today ? 'today' : ''} ${ds === state.calSel ? 'sel' : ''} ${dow === 0 ? 'sun' : dow === 6 ? 'sat' : ''}" data-d="${ds}">
+      <span class="dn">${d}</span>
+      ${js.length ? `<span class="dot ${hasUnpaid ? 'unpaid' : 'paid'}">${js.length}</span>` : ''}
+      ${ts.length ? '<span class="tdot"></span>' : ''}
+      ${sum ? `<span class="amt">${sum >= 10000 ? Math.round(sum / 10000) + '만' : won(sum)}</span>` : ''}</div>`;
+  }
+  const sel = state.calSel;
+  const dayJobs = state.jobs.filter((j) => j.date === sel).sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+  const dayTodos = state.todos.filter((t) => t.date === sel);
+  el.innerHTML = `
+    <div class="calhead"><button class="btn sm" id="pm">‹</button><h2>${y}년 ${mo + 1}월</h2><button class="btn sm" id="nm">›</button></div>
+    <div class="legend"><span class="dot paid">n</span> 입금완료 <span class="dot unpaid">n</span> 미수 있음 <span class="tdot"></span> 할 일</div>
+    <div class="cal">${WEEK.map((w) => `<div class="wk">${w}</div>`).join('')}${cells}</div>
+    <h3>${fmtDate(sel)} <button class="btn sm primary" id="add-job">＋ 작업</button></h3>
+    ${dayJobs.map(jobCard).join('') || '<p class="empty">작업 없음</p>'}
+    <h3>할 일</h3>${todoList(dayTodos)}${addTodoForm(sel)}`;
+  $('#pm').onclick = () => { state.calMonth = new Date(y, mo - 1, 1); render(); };
+  $('#nm').onclick = () => { state.calMonth = new Date(y, mo + 1, 1); render(); };
+  $$('.cell[data-d]', el).forEach((c) => c.onclick = () => { state.calSel = c.dataset.d; render(); });
+  $('#add-job').onclick = () => editJob(null, sel);
+  bindJobCards(el); bindTodos(el);
+}
+
+/* ───────── 사진 ───────── */
+async function resizeImage(file, max = 1600) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+    const r = Math.min(1, max / Math.max(img.width, img.height));
+    const c = document.createElement('canvas'); c.width = Math.round(img.width * r); c.height = Math.round(img.height * r);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return await new Promise((res) => c.toBlob(res, 'image/jpeg', 0.85));
+  } finally { URL.revokeObjectURL(url); }
+}
+const photoURLs = new Map();
+async function photoURL(id) {
+  if (photoURLs.has(id)) return photoURLs.get(id);
+  const p = await DB.get('photos', id); if (!p) return '';
+  const u = URL.createObjectURL(p.blob); photoURLs.set(id, u); return u;
+}
+
+/* ───────── 작업 편집 ───────── */
+async function editJob(id, date) {
+  const j = id ? structuredClone(state.jobs.find((x) => x.id === id)) : {
+    id: uid(), date: date || ymd(), time: '', customer: '', phone: '', address: '', type: '누수탐지', desc: '',
+    amount: '', paid: 0, payMethod: '계좌이체', payDate: '', status: 'plan', photos: [], checklist: [
+      { t: '작업 완료', d: false }, { t: '사진 촬영', d: false }, { t: '입금 확인', d: false }, { t: '밴드 업로드', d: false }],
+    memo: '', asUntil: '', bandShared: false,
+  };
+  const isNew = !id;
+  const customers = [...new Map(state.jobs.filter((x) => x.customer).map((x) => [x.customer + x.phone, x])).values()];
+  const ps = payStatus(j);
+  openSheet(`
+    <div class="sheethead"><h2>${isNew ? '새 작업' : '작업 기록'}</h2><button class="btn sm" data-close>닫기</button></div>
+    <form id="jobf" class="form">
+      <div class="g2"><label>날짜<input type="date" name="date" value="${j.date}" required></label>
+      <label>시간<input type="time" name="time" value="${esc(j.time)}"></label></div>
+      <label>고객명<input name="customer" value="${esc(j.customer)}" list="custlist" placeholder="이름 또는 상호"></label>
+      <datalist id="custlist">${customers.map((c) => `<option value="${esc(c.customer)}">${esc(c.phone || '')}</option>`).join('')}</datalist>
+      <div class="g2"><label>연락처<input name="phone" type="tel" value="${esc(j.phone)}" placeholder="010-0000-0000"></label>
+      <label>작업 종류<select name="type">${JOB_TYPES.map((t) => `<option ${t === j.type ? 'selected' : ''}>${t}</option>`).join('')}</select></label></div>
+      <label>주소<input name="address" value="${esc(j.address)}"></label>
+      <label>작업 내용<textarea name="desc" rows="3" placeholder="예: 욕실 바닥 온수배관 누수, 15A 3m 교체">${esc(j.desc)}</textarea></label>
+      <label class="chk"><input type="checkbox" name="status" ${j.status === 'done' ? 'checked' : ''}> 작업 완료</label>
+      <fieldset><legend>돈</legend>
+        <div class="g2"><label>공사금액(원)<input name="amount" inputmode="numeric" value="${j.amount ? won(j.amount) : ''}" placeholder="예: 350000 또는 35만"></label>
+        <label>받은 금액(원)<input name="paid" inputmode="numeric" value="${j.paid ? won(j.paid) : ''}"></label></div>
+        <div class="g2"><label>결제수단<select name="payMethod">${PAY_METHODS.map((t) => `<option ${t === j.payMethod ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+        <label>입금일<input type="date" name="payDate" value="${esc(j.payDate)}"></label></div>
+        <div class="row"><span class="tag ${ps.key}">${esc(ps.label)}</span><button type="button" class="btn sm primary" id="fullpaid">전액 입금 확인</button></div>
+      </fieldset>
+      <fieldset><legend>체크리스트</legend>
+        <ul class="todos" id="chk">${j.checklist.map((c, i) => `<li class="${c.d ? 'done' : ''}"><label><input type="checkbox" data-ci="${i}" ${c.d ? 'checked' : ''}> <span>${esc(c.t)}</span></label><button type="button" class="x" data-cdel="${i}">×</button></li>`).join('')}</ul>
+        <div class="addtodo"><input id="chknew" placeholder="항목 추가"><button type="button" id="chkadd">추가</button></div>
+      </fieldset>
+      <fieldset><legend>사진 <small>(기기 안에만 저장)</small></legend>
+        <div class="photos" id="photos"></div>
+        <label class="btn">📷 사진 추가<input type="file" accept="image/*" multiple hidden id="photoin"></label>
+      </fieldset>
+      <div class="g2"><label>A/S 보증 끝나는 날<input type="date" name="asUntil" value="${esc(j.asUntil)}"></label>
+      <label>&nbsp;<button type="button" class="btn" id="as-auto">${state.settings.asMonths}개월로 설정</button></label></div>
+      <label>메모(내부용)<textarea name="memo" rows="2">${esc(j.memo)}</textarea></label>
+      <div class="actions">
+        <button class="btn primary big">저장</button>
+      </div>
+      <div class="actions wrap">
+        ${j.phone ? `<a class="btn" href="tel:${esc(j.phone)}">📞 전화</a><button type="button" class="btn" id="sms">💬 입금요청 문자</button>` : ''}
+        ${j.address ? `<a class="btn" target="_blank" rel="noopener" href="https://map.naver.com/p/search/${encodeURIComponent(j.address)}">🗺 지도</a>` : ''}
+        <button type="button" class="btn" id="band">🟢 밴드에 올리기</button>
+        <button type="button" class="btn" id="toest">📄 견적서 만들기</button>
+        ${isNew ? '' : '<button type="button" class="btn danger" id="del">삭제</button>'}
+      </div>
+    </form>`, (root) => {
+    const f = $('#jobf', root);
+    const readForm = () => {
+      j.date = f.date.value; j.time = f.time.value; j.customer = f.customer.value.trim(); j.phone = f.phone.value.trim();
+      j.type = f.type.value; j.address = f.address.value.trim(); j.desc = f.desc.value.trim();
+      j.status = f.status.checked ? 'done' : 'plan';
+      j.amount = parseMoney(f.amount.value) || 0; j.paid = parseMoney(f.paid.value) || 0;
+      j.payMethod = f.payMethod.value; j.payDate = f.payDate.value; j.asUntil = f.asUntil.value; j.memo = f.memo.value;
+      const pc = j.checklist.find((c) => c.t === '입금 확인'); if (pc && j.amount && j.paid >= j.amount) pc.d = true;
+      const wc = j.checklist.find((c) => c.t === '작업 완료'); if (wc && j.status === 'done') wc.d = true;
+    };
+    const save = async (quiet) => {
+      readForm(); await DB.put('jobs', j);
+      const i = state.jobs.findIndex((x) => x.id === j.id); if (i >= 0) state.jobs[i] = j; else state.jobs.push(j);
+      if (!quiet) toast('저장했습니다');
+    };
+    // 고객 자동완성 → 연락처/주소 채우기
+    f.customer.onchange = () => {
+      const c = customers.find((x) => x.customer === f.customer.value);
+      if (c) { if (!f.phone.value) f.phone.value = c.phone || ''; if (!f.address.value) f.address.value = c.address || ''; }
+    };
+    const drawPhotos = async () => {
+      const box = $('#photos', root);
+      box.innerHTML = (await Promise.all(j.photos.map(async (pid) => `<div class="ph"><img src="${await photoURL(pid)}" alt=""><button type="button" data-pdel="${pid}">×</button></div>`))).join('');
+      $$('[data-pdel]', box).forEach((b) => b.onclick = async () => {
+        if (!confirm('사진을 삭제할까요?')) return;
+        j.photos = j.photos.filter((p) => p !== b.dataset.pdel); await DB.del('photos', b.dataset.pdel); drawPhotos();
+      });
+    };
+    drawPhotos();
+    $('#photoin', root).onchange = async (e) => {
+      for (const file of e.target.files) {
+        const blob = await resizeImage(file); const pid = uid();
+        await DB.put('photos', { id: pid, blob, jobId: j.id }); j.photos.push(pid);
+      }
+      e.target.value = ''; drawPhotos();
+      const pc = j.checklist.find((c) => c.t === '사진 촬영'); if (pc) pc.d = true;
+    };
+    const drawChk = () => {
+      $('#chk', root).innerHTML = j.checklist.map((c, i) => `<li class="${c.d ? 'done' : ''}"><label><input type="checkbox" data-ci="${i}" ${c.d ? 'checked' : ''}> <span>${esc(c.t)}</span></label><button type="button" class="x" data-cdel="${i}">×</button></li>`).join('');
+      $$('[data-ci]', root).forEach((c) => c.onchange = () => { j.checklist[c.dataset.ci].d = c.checked; drawChk(); });
+      $$('[data-cdel]', root).forEach((b) => b.onclick = () => { j.checklist.splice(b.dataset.cdel, 1); drawChk(); });
+    };
+    drawChk();
+    $('#chkadd', root).onclick = () => { const v = $('#chknew', root).value.trim(); if (v) { j.checklist.push({ t: v, d: false }); $('#chknew', root).value = ''; drawChk(); } };
+    $('#fullpaid', root).onclick = () => {
+      const amt = parseMoney(f.amount.value); if (!amt) { toast('공사금액을 먼저 입력하세요'); return; }
+      f.paid.value = won(amt); if (!f.payDate.value) f.payDate.value = ymd();
+      const pc = j.checklist.find((c) => c.t === '입금 확인'); if (pc) { pc.d = true; drawChk(); }
+      toast('전액 입금으로 표시했습니다 (저장을 눌러주세요)');
+    };
+    $('#as-auto', root).onclick = () => { const d = new Date(f.date.value + 'T00:00'); d.setMonth(d.getMonth() + Number(state.settings.asMonths || 12)); f.asUntil.value = ymd(d); };
+    f.onsubmit = async (e) => { e.preventDefault(); await save(); closeSheet(); };
+    $('[data-close]', root).onclick = closeSheet;
+    const sms = $('#sms', root);
+    if (sms) sms.onclick = () => { readForm(); location.href = smsLink(j); };
+    $('#band', root).onclick = async () => { await save(true); shareToBand(j); };
+    $('#toest', root).onclick = async () => { await save(true); editEstimate(null, j); };
+    const del = $('#del', root);
+    if (del) del.onclick = async () => {
+      if (!confirm('이 작업 기록을 삭제할까요? (사진도 함께 삭제)')) return;
+      for (const p of j.photos) await DB.del('photos', p);
+      await DB.del('jobs', j.id); state.jobs = state.jobs.filter((x) => x.id !== j.id); closeSheet();
+    };
+  });
+}
+
+function smsLink(j) {
+  const c = state.settings.company;
+  const body = fill(state.settings.smsTemplate, {
+    상호: c.name || '', 날짜: fmtDate(j.date), 내용: j.type || '', 금액: won(unpaidOf(j) || j.amount),
+    계좌: c.account || '', 고객: j.customer || '',
+  });
+  return `sms:${(j.phone || '').replace(/[^\d+]/g, '')}?&body=${encodeURIComponent(body)}`;
+}
+
+/* ───────── 밴드 공유 ─────────
+ * 밴드 공식 Open API 글쓰기는 텍스트만 지원하므로, 사진+글은 휴대폰 '공유하기'로 밴드 앱에 넘긴다.
+ * 사용자는 밴드 앱에서 밴드 선택 → [게시] 만 누르면 된다. */
+async function shareToBand(j) {
+  const text = fill(state.settings.bandTemplate, {
+    유형: j.type || '', 지역: areaOf(j.address), 내용: j.desc || '', 날짜: fmtDate(j.date), 고객: '',
+  }).replace(/#\s/g, '').trim();
+  const files = [];
+  for (const pid of j.photos || []) {
+    const p = await DB.get('photos', pid);
+    if (p) files.push(new File([p.blob], `photo_${files.length + 1}.jpg`, { type: 'image/jpeg' }));
+  }
+  const markShared = async () => {
+    j.bandShared = true; const c = j.checklist.find((x) => x.t === '밴드 업로드'); if (c) c.d = true;
+    await DB.put('jobs', j); const i = state.jobs.findIndex((x) => x.id === j.id); if (i >= 0) state.jobs[i] = j;
+  };
+  try { await navigator.clipboard.writeText(text); } catch (e) { /* 무시 */ }
+  if (files.length && navigator.canShare && navigator.canShare({ files })) {
+    try {
+      await navigator.share({ files, text, title: j.type || '' });
+      await markShared(); toast('공유 완료. 글이 빠졌으면 붙여넣기 하세요(복사됨)');
+    } catch (e) { if (e.name !== 'AbortError') toast('공유 실패: ' + e.message); }
+    return;
+  }
+  // 사진 공유가 안 되는 환경(PC 등): 글만 밴드 공유창으로
+  const url = `https://band.us/plugin/share?body=${encodeURIComponent(text)}&route=${encodeURIComponent(location.host || 'localhost')}`;
+  window.open(url, '_blank', 'noopener');
+  await markShared();
+  toast(files.length ? '이 기기는 사진 공유를 지원하지 않아 글만 보냈습니다. 휴대폰에서 다시 시도하세요' : '밴드 공유창을 열었습니다');
+}
+
+/* ───────── 견적서 ───────── */
+function renderEstList(el) {
+  const list = [...state.estimates].sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.id.localeCompare(a.id));
+  el.innerHTML = `<h2>견적서</h2>
+    <button class="btn primary big" id="new-est">＋ 새 견적서</button>
+    ${list.map((e) => { const t = EstCore.calcTotals(e.items, e.vatMode); return `<div class="card" data-est="${e.id}">
+      <div class="row"><b>${esc(e.customer || '(고객 미입력)')}</b><span>${won(t.total)}원</span></div>
+      <div class="sub">${fmtDate(e.date)} · ${esc(e.title || '')}</div></div>`; }).join('') || '<p class="empty">저장된 견적서가 없습니다</p>'}`;
+  $('#new-est').onclick = () => editEstimate(null);
+  $$('[data-est]', el).forEach((c) => c.onclick = () => editEstimate(c.dataset.est));
+}
+
+const EXAMPLE_TEXT = `고객: 김철수 010-1234-5678
+주소: 서울 강남구 역삼동 123-4 101동 202호
+공사: 욕실 바닥 누수 보수
+누수탐지 1식 15만
+PB관 교체 15A 5m 12000
+타일 철거 및 복구 2㎡ 60000
+부가세 별도
+메모: 하자보수 1년`;
+
+function editEstimate(id, fromJob) {
+  const e = id ? structuredClone(state.estimates.find((x) => x.id === id)) : {
+    id: uid(), date: ymd(), customer: fromJob?.customer || '', phone: fromJob?.phone || '', address: fromJob?.address || '',
+    title: fromJob ? `${fromJob.type} 공사` : '', items: [], vatMode: 'separate', memo: '', validDays: 30, jobId: fromJob?.id || '', raw: '',
+  };
+  openSheet(`
+    <div class="sheethead"><h2>견적서</h2><button class="btn sm" data-close>닫기</button></div>
+    <div class="form">
+      <details ${e.items.length ? '' : 'open'}><summary>✍️ 글로 한 번에 입력 (자동 채우기)</summary>
+        <textarea id="raw" rows="8" placeholder="${esc(EXAMPLE_TEXT)}">${esc(e.raw || '')}</textarea>
+        <div class="row"><button type="button" class="btn sm" id="ex">예시 넣기</button><button type="button" class="btn primary" id="parse">자동 채우기 ↓</button></div>
+        <p class="hint">한 줄에 품목 하나: <code>품명 [규격] [수량+단위] 단가</code>. 금액은 15만, 150,000 모두 됩니다. 결과는 아래에서 고칠 수 있습니다.</p>
+        <p class="hint red" id="unparsed"></p>
+      </details>
+      <div class="g2"><label>견적일<input type="date" id="e-date" value="${e.date}"></label>
+      <label>부가세<select id="e-vat"><option value="separate">별도(10% 추가)</option><option value="included">포함</option><option value="none">없음</option></select></label></div>
+      <div class="g2"><label>고객명<input id="e-customer" value="${esc(e.customer)}"></label><label>연락처<input id="e-phone" value="${esc(e.phone)}"></label></div>
+      <label>현장주소<input id="e-address" value="${esc(e.address)}"></label>
+      <label>공사명<input id="e-title" value="${esc(e.title)}"></label>
+      <h3>품목</h3>
+      <div id="items"></div>
+      <div class="row wrap"><button type="button" class="btn sm" id="add-item">＋ 빈 줄</button>
+      ${state.settings.presets.map((p, i) => `<button type="button" class="btn sm chip" data-preset="${i}">${esc(p.name)}</button>`).join('')}</div>
+      <div class="totals" id="totals"></div>
+      <label>특기사항<textarea id="e-memo" rows="3">${esc(e.memo)}</textarea></label>
+      <div class="actions wrap">
+        <button class="btn primary big" id="e-save">저장</button>
+        <button class="btn primary" id="e-hwp">⬇ 한글(HWPX) 받기</button>
+        <button class="btn" id="e-print">🖨 인쇄 / PDF</button>
+        ${e.jobId ? '' : '<button class="btn" id="e-tojob">작업으로 등록</button>'}
+        ${id ? '<button class="btn danger" id="e-del">삭제</button>' : ''}
+      </div>
+      ${state.settings.company.name ? '' : '<p class="hint red">더보기 → 업체정보를 입력하면 견적서에 상호·계좌가 들어갑니다.</p>'}
+    </div>`, (root) => {
+    $('#e-vat', root).value = e.vatMode;
+    const read = () => {
+      e.date = $('#e-date', root).value; e.vatMode = $('#e-vat', root).value; e.customer = $('#e-customer', root).value.trim();
+      e.phone = $('#e-phone', root).value.trim(); e.address = $('#e-address', root).value.trim(); e.title = $('#e-title', root).value.trim();
+      e.memo = $('#e-memo', root).value; e.raw = $('#raw', root).value;
+    };
+    const drawTotals = () => {
+      const t = EstCore.calcTotals(e.items, $('#e-vat', root).value);
+      $('#totals', root).innerHTML = `<div>공급가액 <b>${won(t.supply)}</b></div><div>부가세 <b>${won(t.vat)}</b></div><div class="big">합계 <b>${won(t.total)}원</b></div><small>일금 ${EstCore.toKoreanMoney(t.total)}원정</small>`;
+    };
+    const drawItems = () => {
+      $('#items', root).innerHTML = e.items.map((it, i) => `<div class="item" data-i="${i}">
+        <input data-k="name" value="${esc(it.name)}" placeholder="품명" class="w-name">
+        <input data-k="spec" value="${esc(it.spec)}" placeholder="규격" class="w-s">
+        <input data-k="qty" value="${esc(it.qty)}" inputmode="decimal" placeholder="수량" class="w-s">
+        <input data-k="unit" value="${esc(it.unit)}" placeholder="단위" class="w-s">
+        <input data-k="price" value="${it.price ? won(it.price) : ''}" inputmode="numeric" placeholder="단가" class="w-m">
+        <span class="amt">${won((Number(it.qty) || 0) * (Number(it.price) || 0))}</span>
+        <input data-k="note" value="${esc(it.note || '')}" placeholder="비고" class="w-m">
+        <button type="button" class="x" data-idel="${i}">×</button></div>`).join('') || '<p class="empty">품목이 없습니다</p>';
+      $$('.item input', root).forEach((inp) => inp.onchange = () => {
+        const it = e.items[inp.closest('.item').dataset.i], k = inp.dataset.k;
+        it[k] = k === 'price' ? parseMoney(inp.value) || 0 : k === 'qty' ? parseFloat(inp.value) || 0 : inp.value;
+        drawItems();
+      });
+      $$('[data-idel]', root).forEach((b) => b.onclick = () => { e.items.splice(b.dataset.idel, 1); drawItems(); });
+      drawTotals();
+    };
+    drawItems();
+    $('#e-vat', root).onchange = drawTotals;
+    $('#ex', root).onclick = () => { $('#raw', root).value = EXAMPLE_TEXT; };
+    $('#parse', root).onclick = () => {
+      const r = EstCore.parseEstimateText($('#raw', root).value);
+      const set = (sel, v) => { if (v) $(sel, root).value = v; };
+      set('#e-customer', r.fields.customer); set('#e-phone', r.fields.phone); set('#e-address', r.fields.address);
+      set('#e-title', r.fields.title); set('#e-memo', r.fields.memo);
+      if (r.fields.date && /^\d{4}-\d{2}-\d{2}$/.test(r.fields.date)) set('#e-date', r.fields.date);
+      if (r.vatMode) $('#e-vat', root).value = r.vatMode;
+      if (r.items.length) e.items = r.items;
+      $('#unparsed', root).textContent = r.unparsed.length ? '이해하지 못한 줄: ' + r.unparsed.join(' / ') : '';
+      drawItems(); toast(`품목 ${r.items.length}개를 채웠습니다`);
+    };
+    $('#add-item', root).onclick = () => { e.items.push({ name: '', spec: '', qty: 1, unit: '식', price: 0, note: '' }); drawItems(); };
+    $$('[data-preset]', root).forEach((b) => b.onclick = () => { const p = state.settings.presets[b.dataset.preset]; e.items.push({ ...p, qty: 1, note: '' }); drawItems(); });
+    const save = async (quiet) => {
+      read(); e.items = e.items.filter((it) => it.name);
+      await DB.put('estimates', e);
+      const i = state.estimates.findIndex((x) => x.id === e.id); if (i >= 0) state.estimates[i] = e; else state.estimates.push(e);
+      if (!quiet) toast('견적서를 저장했습니다');
+    };
+    $('#e-save', root).onclick = async () => { await save(); closeSheet(); };
+    $('#e-hwp', root).onclick = async () => {
+      await save(true);
+      if (!e.items.length) { toast('품목을 1개 이상 넣어주세요'); return; }
+      try {
+        const tpl = (await DB.getKV('template', null)) || await (await fetch('templates/estimate_template.hwpx')).arrayBuffer();
+        const b = EstCore.buildTemplateData(e, state.settings.company);
+        const blob = await Hwpx.fillHwpx(tpl, b.data, b.items, { JSZip, DOMParser, XMLSerializer, outType: 'blob' });
+        const name = `견적서_${e.customer || '고객'}_${e.date}.hwpx`;
+        const file = new File([blob], name, { type: 'application/hwp+zip' });
+        if (navigator.canShare && navigator.canShare({ files: [file] }) && confirm('카톡 등으로 바로 보낼까요?\n(취소 = 휴대폰에 저장)')) {
+          await navigator.share({ files: [file], title: name }).catch(() => {});
+        } else {
+          downloadBlob(blob, name);
+        }
+      } catch (err) { console.error(err); alert('견적서 생성 실패: ' + err.message); }
+    };
+    $('#e-print', root).onclick = async () => { await save(true); printEstimate(e); };
+    const tj = $('#e-tojob', root);
+    if (tj) tj.onclick = async () => {
+      await save(true);
+      const t = EstCore.calcTotals(e.items, e.vatMode);
+      const j = { id: uid(), date: e.date, time: '', customer: e.customer, phone: e.phone, address: e.address, type: '기타', desc: e.title + '\n' + e.items.map((it) => it.name).join(', '),
+        amount: t.total, paid: 0, payMethod: '계좌이체', payDate: '', status: 'plan', photos: [], checklist: [{ t: '작업 완료', d: false }, { t: '사진 촬영', d: false }, { t: '입금 확인', d: false }, { t: '밴드 업로드', d: false }], memo: '견적서에서 등록', asUntil: '', bandShared: false };
+      await DB.put('jobs', j); state.jobs.push(j); e.jobId = j.id; await save(true); toast('작업으로 등록했습니다 (달력에서 날짜 조정)'); closeSheet();
+    };
+    const d = $('#e-del', root);
+    if (d) d.onclick = async () => { if (!confirm('견적서를 삭제할까요?')) return; await DB.del('estimates', e.id); state.estimates = state.estimates.filter((x) => x.id !== e.id); closeSheet(); };
+    $('[data-close]', root).onclick = closeSheet;
+  });
+}
+
+function printEstimate(e) {
+  const b = EstCore.buildTemplateData(e, state.settings.company), d = b.data;
+  $('#print').innerHTML = `<div class="paper"><h1>견 적 서</h1>
+    <table class="info"><tr><th>견적일자</th><td>${esc(d.date)}</td><th>상호</th><td>${esc(d.company)}</td></tr>
+    <tr><th>수신</th><td>${esc(d.customer)} 귀하</td><th>대표자</th><td>${esc(d.owner)}</td></tr>
+    <tr><th>연락처</th><td>${esc(d.phone)}</td><th>사업자번호</th><td>${esc(d.bizno)}</td></tr>
+    <tr><th>현장주소</th><td>${esc(d.address)}</td><th>연락처</th><td>${esc(d.company_phone)}</td></tr>
+    <tr><th>공사명</th><td>${esc(d.title)}</td><th>계좌</th><td>${esc(d.account)}</td></tr></table>
+    <p class="sum">합계금액 : 일금 ${esc(d.total_korean)}원정 (￦${esc(d.total)}) ※ 부가세 ${esc(d.vat_label)}</p>
+    <table class="items"><tr><th>No</th><th>품명</th><th>규격</th><th>수량</th><th>단위</th><th>단가</th><th>금액</th><th>비고</th></tr>
+    ${b.items.map((it) => `<tr><td>${it.no}</td><td class="l">${esc(it.name)}</td><td>${esc(it.spec)}</td><td>${esc(it.qty)}</td><td>${esc(it.unit)}</td><td class="r">${it.price}</td><td class="r">${it.amount}</td><td>${esc(it.note)}</td></tr>`).join('')}
+    <tr><th colspan="6">공급가액</th><td class="r" colspan="2">${d.supply}</td></tr>
+    <tr><th colspan="6">부가세</th><td class="r" colspan="2">${d.vat}</td></tr>
+    <tr><th colspan="6">합계</th><td class="r" colspan="2"><b>${d.total}</b></td></tr></table>
+    ${d.memo ? `<p><b>※ 특기사항</b><br>${esc(d.memo).replace(/\n/g, '<br>')}</p>` : ''}
+    <p class="sign">${esc(d.company)} 대표 ${esc(d.owner)} (인)</p></div>`;
+  window.print();
+}
+
+/* ───────── 돈(미수·통계) ───────── */
+function renderMoney(el) {
+  const unpaid = state.jobs.filter((j) => unpaidOf(j) > 0).sort((a, b) => a.date.localeCompare(b.date));
+  const total = unpaid.reduce((a, j) => a + unpaidOf(j), 0);
+  const m = state.moneyMonth;
+  const mj = state.jobs.filter((j) => (j.date || '').startsWith(m));
+  const sales = mj.reduce((a, j) => a + (Number(j.amount) || 0), 0);
+  const got = mj.reduce((a, j) => a + Math.min(Number(j.paid) || 0, Number(j.amount) || 0), 0);
+  const byType = {};
+  mj.forEach((j) => { byType[j.type] = byType[j.type] || { n: 0, s: 0 }; byType[j.type].n++; byType[j.type].s += Number(j.amount) || 0; });
+  const today = new Date();
+  el.innerHTML = `<h2>받을 돈 <small>${unpaid.length}건</small></h2>
+    <div class="stat warn wide"><small>미수금 합계</small><b>${won(total)}원</b></div>
+    ${unpaid.map((j) => { const days = Math.floor((today - new Date(j.date + 'T00:00')) / 864e5); return `<div class="card">
+      <div class="row"><b>${esc(j.customer || '(고객 미입력)')}</b><b class="red">${won(unpaidOf(j))}원</b></div>
+      <div class="sub">${fmtDate(j.date)} · ${esc(j.type)} · ${days > 0 ? `<span class="${days > 30 ? 'red' : ''}">${days}일 지남</span>` : '오늘/예정'}</div>
+      <div class="row wrap">
+        <button class="btn sm primary" data-pay="${j.id}">입금 확인</button>
+        ${j.phone ? `<a class="btn sm" href="tel:${esc(j.phone)}">전화</a><a class="btn sm" href="${esc(smsLink(j))}">문자</a>` : ''}
+        <button class="btn sm" data-open="${j.id}">열기</button></div></div>`; }).join('') || '<p class="empty">받을 돈이 없습니다 👍</p>'}
+    <h2>월별 정리</h2>
+    <label class="inline">월 선택 <input type="month" id="mm" value="${m}"></label>
+    <div class="stats"><div class="stat"><small>매출(공사금액)</small><b>${won(sales)}</b></div><div class="stat"><small>받은 돈</small><b>${won(got)}</b></div>
+    <div class="stat"><small>작업 건수</small><b>${mj.length}</b></div><div class="stat warn"><small>그 달 미수</small><b>${won(sales - got)}</b></div></div>
+    <table class="tbl"><tr><th>종류</th><th>건수</th><th>금액</th></tr>${Object.entries(byType).sort((a, b) => b[1].s - a[1].s).map(([k, v]) => `<tr><td>${esc(k)}</td><td>${v.n}</td><td class="r">${won(v.s)}</td></tr>`).join('') || '<tr><td colspan="3">기록 없음</td></tr>'}</table>
+    <button class="btn" id="csv">⬇ 이 달 장부 엑셀(CSV) 받기</button>`;
+  $$('[data-pay]', el).forEach((b) => b.onclick = async () => {
+    const j = state.jobs.find((x) => x.id === b.dataset.pay);
+    const v = prompt(`${j.customer} — 받은 금액을 입력하세요 (남은 금액 ${won(unpaidOf(j))}원)`, won(unpaidOf(j)));
+    if (v == null) return; const n = parseMoney(v); if (!n) return;
+    j.paid = (Number(j.paid) || 0) + n; j.payDate = ymd();
+    if (j.paid >= j.amount) { const c = (j.checklist || []).find((x) => x.t === '입금 확인'); if (c) c.d = true; }
+    await DB.put('jobs', j); toast('입금 처리했습니다'); render();
+  });
+  $$('[data-open]', el).forEach((b) => b.onclick = () => editJob(b.dataset.open));
+  $('#mm').onchange = (e) => { state.moneyMonth = e.target.value; render(); };
+  $('#csv').onclick = () => {
+    const rows = [['날짜', '고객', '연락처', '주소', '종류', '내용', '공사금액', '받은금액', '미수', '결제수단', '입금일']];
+    mj.sort((a, b) => a.date.localeCompare(b.date)).forEach((j) => rows.push([j.date, j.customer, j.phone, j.address, j.type, j.desc, j.amount || 0, j.paid || 0, unpaidOf(j), j.payMethod, j.payDate]));
+    const csv = '﻿' + rows.map((r) => r.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    downloadBlob(new Blob([csv], { type: 'text/csv' }), `장부_${m}.csv`);
+  };
+}
+
+/* ───────── 더보기(설정) ───────── */
+function renderMore(el) {
+  const s = state.settings, c = s.company;
+  el.innerHTML = `<h2>설정</h2>
+    <details open><summary>업체정보 (견적서에 들어감)</summary><form id="cf" class="form">
+      <div class="g2"><label>상호<input name="name" value="${esc(c.name)}"></label><label>대표자<input name="owner" value="${esc(c.owner)}"></label></div>
+      <div class="g2"><label>사업자번호<input name="bizno" value="${esc(c.bizno)}"></label><label>연락처<input name="phone" value="${esc(c.phone)}"></label></div>
+      <label>주소<input name="address" value="${esc(c.address)}"></label>
+      <label>계좌번호<input name="account" value="${esc(c.account)}" placeholder="○○은행 000-0000-0000 홍길동"></label>
+      <button class="btn primary">저장</button></form></details>
+    <details><summary>단가표 (견적서 빠른 추가)</summary>
+      <div id="presets"></div><button class="btn sm" id="padd">＋ 품목</button> <button class="btn sm primary" id="psave">단가표 저장</button></details>
+    <details><summary>견적서 양식 (HWPX)</summary>
+      <p class="hint">지금은 <b>예시 양식</b>을 씁니다. 실제 양식으로 바꾸려면: 한글에서 양식을 열고 값이 들어갈 자리에 <code>{{customer}}</code> 처럼 적은 뒤 <b>[다른 이름으로 저장 → HWPX]</b>로 저장해 아래에 올리세요. 품목 표는 한 줄에 <code>{{name}}</code> 등을 적어두면 품목 수만큼 늘어납니다.</p>
+      <p class="hint">쓸 수 있는 자리표시자: <code>{{date}} {{customer}} {{phone}} {{address}} {{title}} {{memo}} {{company}} {{owner}} {{bizno}} {{company_phone}} {{company_address}} {{account}} {{supply}} {{vat}} {{total}} {{total_korean}}</code> / 품목 행: <code>{{no}} {{name}} {{spec}} {{qty}} {{unit}} {{price}} {{amount}} {{note}}</code> (한글 이름 {{고객}} {{품명}} 등도 됨)</p>
+      <p id="tplstate" class="hint"></p>
+      <label class="btn">양식 올리기 (.hwpx)<input type="file" accept=".hwpx" hidden id="tplin"></label>
+      <a class="btn" href="templates/estimate_template.hwpx" download="견적서_예시양식.hwpx">예시 양식 받기</a>
+      <button class="btn" id="tplreset">예시 양식으로 되돌리기</button></details>
+    <details><summary>밴드 · 문자 문구</summary><div class="form">
+      <label>밴드 글 틀 <small>{유형} {지역} {내용} {날짜} — 주소는 시·구·동까지만 들어갑니다</small><textarea id="bt" rows="4">${esc(s.bandTemplate)}</textarea></label>
+      <label>입금요청 문자 틀 <small>{상호} {날짜} {내용} {금액} {계좌} {고객}</small><textarea id="st" rows="3">${esc(s.smsTemplate)}</textarea></label>
+      <label>A/S 보증 기본 개월 수<input id="asm" type="number" value="${s.asMonths}"></label>
+      <button class="btn primary" id="tsave">저장</button></div></details>
+    <details><summary>고객 목록</summary><div id="custs"></div></details>
+    <details><summary>백업 · 복원 (중요)</summary>
+      <p class="hint">모든 기록은 <b>이 휴대폰 브라우저 안</b>에만 저장됩니다. 폰을 바꾸거나 브라우저 데이터를 지우면 사라지니, 주기적으로 백업 파일을 받아 카톡 '나에게 보내기'나 구글드라이브에 보관하세요.</p>
+      <label class="chk"><input type="checkbox" id="bkph" checked> 사진 포함</label>
+      <button class="btn primary" id="bk">⬇ 백업 받기</button>
+      <label class="btn">⬆ 백업 복원<input type="file" accept=".json" hidden id="rs"></label></details>
+    <p class="hint">배관·누수 업무수첩 v1 · 데이터는 서버로 전송되지 않습니다.</p>`;
+  $('#cf').onsubmit = async (e) => { e.preventDefault(); for (const k of Object.keys(c)) c[k] = e.target[k].value.trim(); await saveSettings(); toast('업체정보 저장'); };
+  const drawPresets = () => {
+    $('#presets').innerHTML = s.presets.map((p, i) => `<div class="item" data-i="${i}"><input data-k="name" value="${esc(p.name)}" placeholder="품명" class="w-name"><input data-k="spec" value="${esc(p.spec)}" placeholder="규격" class="w-s"><input data-k="unit" value="${esc(p.unit)}" placeholder="단위" class="w-s"><input data-k="price" value="${won(p.price)}" placeholder="단가" class="w-m" inputmode="numeric"><button class="x" data-pdel="${i}">×</button></div>`).join('');
+    $$('#presets input').forEach((inp) => inp.onchange = () => { const p = s.presets[inp.closest('.item').dataset.i]; p[inp.dataset.k] = inp.dataset.k === 'price' ? parseMoney(inp.value) || 0 : inp.value; });
+    $$('#presets [data-pdel]').forEach((b) => b.onclick = () => { s.presets.splice(b.dataset.pdel, 1); drawPresets(); });
+  };
+  drawPresets();
+  $('#padd').onclick = () => { s.presets.push({ name: '', spec: '', unit: '식', price: 0 }); drawPresets(); };
+  $('#psave').onclick = async () => { s.presets = s.presets.filter((p) => p.name); await saveSettings(); toast('단가표 저장'); drawPresets(); };
+  DB.getKV('templateName', '').then((n) => { $('#tplstate').textContent = n ? `사용 중인 양식: ${n}` : '사용 중인 양식: 예시 양식'; });
+  $('#tplin').onchange = async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    const buf = await f.arrayBuffer();
+    try {
+      const z = await JSZip.loadAsync(buf);
+      if (!z.file('Contents/section0.xml')) throw new Error('HWPX 형식이 아닙니다 (한글에서 HWPX로 저장했는지 확인)');
+      const x = await z.file('Contents/section0.xml').async('string');
+      const keys = [...new Set((x.match(/\{\{[^}<]+\}\}/g) || []))];
+      await DB.setKV('template', buf); await DB.setKV('templateName', f.name);
+      alert(`양식을 등록했습니다.\n찾은 자리표시자 ${keys.length}개: ${keys.join(' ') || '(없음 — 글자가 쪼개져 저장됐을 수 있습니다)'}`);
+      render();
+    } catch (err) { alert('양식 등록 실패: ' + err.message); }
+  };
+  $('#tplreset').onclick = async () => { await DB.del('kv', 'template'); await DB.del('kv', 'templateName'); toast('예시 양식으로 되돌렸습니다'); render(); };
+  $('#tsave').onclick = async () => { s.bandTemplate = $('#bt').value; s.smsTemplate = $('#st').value; s.asMonths = Number($('#asm').value) || 12; await saveSettings(); toast('저장'); };
+  const cm = new Map();
+  state.jobs.forEach((j) => { if (!j.customer) return; const k = j.customer + '|' + (j.phone || ''); const v = cm.get(k) || { name: j.customer, phone: j.phone, n: 0, s: 0, u: 0, last: '' }; v.n++; v.s += Number(j.amount) || 0; v.u += unpaidOf(j); if (j.date > v.last) v.last = j.date; cm.set(k, v); });
+  $('#custs').innerHTML = `<table class="tbl"><tr><th>고객</th><th>횟수</th><th>총액</th><th>미수</th><th>최근</th></tr>${[...cm.values()].sort((a, b) => b.last.localeCompare(a.last)).map((v) => `<tr><td>${esc(v.name)}<br><small>${v.phone ? `<a href="tel:${esc(v.phone)}">${esc(v.phone)}</a>` : ''}</small></td><td>${v.n}</td><td class="r">${won(v.s)}</td><td class="r ${v.u ? 'red' : ''}">${won(v.u)}</td><td>${fmtDate(v.last)}</td></tr>`).join('') || '<tr><td colspan="5">작업 기록이 쌓이면 자동으로 만들어집니다</td></tr>'}</table>`;
+  $('#bk').onclick = backup;
+  $('#rs').onchange = restore;
+}
+
+function downloadBlob(blob, name) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+const blobToDataURL = (b) => new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(b); });
+async function backup() {
+  const out = { app: 'plumbing-biz', v: 1, at: new Date().toISOString(), settings: state.settings, jobs: state.jobs, todos: state.todos, estimates: state.estimates, photos: [] };
+  if ($('#bkph').checked) for (const p of await DB.all('photos')) out.photos.push({ id: p.id, jobId: p.jobId, data: await blobToDataURL(p.blob) });
+  downloadBlob(new Blob([JSON.stringify(out)], { type: 'application/json' }), `업무수첩_백업_${ymd()}.json`);
+}
+async function restore(e) {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const d = JSON.parse(await f.text());
+    if (d.app !== 'plumbing-biz') throw new Error('이 앱의 백업 파일이 아닙니다');
+    if (!confirm(`백업(${d.at?.slice(0, 10)})으로 덮어쓸까요? 지금 기록은 사라집니다.`)) return;
+    for (const s of ['jobs', 'todos', 'estimates', 'photos']) await DB.clear(s);
+    for (const j of d.jobs || []) await DB.put('jobs', j);
+    for (const t of d.todos || []) await DB.put('todos', t);
+    for (const x of d.estimates || []) await DB.put('estimates', x);
+    for (const p of d.photos || []) await DB.put('photos', { id: p.id, jobId: p.jobId, blob: await (await fetch(p.data)).blob() });
+    if (d.settings) await DB.setKV('settings', d.settings);
+    await loadAll(); toast('복원 완료'); render();
+  } catch (err) { alert('복원 실패: ' + err.message); }
+}
+
+/* ───────── 시작 ───────── */
+window.addEventListener('hashchange', render);
+document.addEventListener('DOMContentLoaded', async () => {
+  $('#sheet').addEventListener('click', (e) => { if (e.target.id === 'sheet') closeSheet(); });
+  await loadAll();
+  render();
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+});
