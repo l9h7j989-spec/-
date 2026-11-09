@@ -369,7 +369,14 @@ function renderEstList(el) {
   $$('[data-est]', el).forEach((c) => c.onclick = () => editEstimate(c.dataset.est));
 }
 
-const EXAMPLE_TEXT = `고객: 김철수 010-1234-5678
+const EXAMPLE_TEXT = `[카톡 예시]
+김철수: 사장님 안녕하세요 역삼동 래미안 101동 202호인데요
+김철수: 욕실 바닥에서 물이 새서 아랫집 천장이 젖었대요ㅠ 010-1234-5678
+나: 내일 오전에 가서 누수탐지 하고 배관 바꿔드릴게요
+나: 탐지 15만, 배관 15A 5미터 정도 미터당 12000, 타일 복구 2제곱 6만씩. 부가세 별도요
+김철수: 네 하자보수는 1년 되나요?
+나: 네 1년 해드려요`;
+const RULE_EXAMPLE = `고객: 김철수 010-1234-5678
 주소: 서울 강남구 역삼동 123-4 101동 202호
 공사: 욕실 바닥 누수 보수
 누수탐지 1식 15만
@@ -386,10 +393,19 @@ function editEstimate(id, fromJob) {
   openSheet(`
     <div class="sheethead"><h2>견적서</h2><button class="btn sm" data-close>닫기</button></div>
     <div class="form">
-      <details ${e.items.length ? '' : 'open'}><summary>✍️ 글로 한 번에 입력 (자동 채우기)</summary>
+      <details ${e.items.length ? '' : 'open'}><summary>💬 카톡·메모 붙여넣고 자동 채우기</summary>
+        <p class="hint">고객과 주고받은 카톡이나 메모를 <b>그대로</b> 붙여넣으세요. 형식 없어도 됩니다.</p>
         <textarea id="raw" rows="8" placeholder="${esc(EXAMPLE_TEXT)}">${esc(e.raw || '')}</textarea>
-        <div class="row"><button type="button" class="btn sm" id="ex">예시 넣기</button><button type="button" class="btn primary" id="parse">자동 채우기 ↓</button></div>
-        <p class="hint">한 줄에 품목 하나: <code>품명 [규격] [수량+단위] 단가</code>. 금액은 15만, 150,000 모두 됩니다. 결과는 아래에서 고칠 수 있습니다.</p>
+        <div class="row wrap">
+          <button type="button" class="btn sm" id="paste">📋 붙여넣기</button>
+          <button type="button" class="btn sm" id="ex">예시</button>
+          ${Cloud.ready ? '<button type="button" class="btn primary" id="ai">🤖 AI로 채우기</button>' : ''}
+          <button type="button" class="btn ${Cloud.ready ? 'sm' : 'primary'}" id="parse">${Cloud.ready ? '간단 채우기' : '자동 채우기 ↓'}</button>
+        </div>
+        <p class="hint">${Cloud.ready
+          ? '<b>AI로 채우기</b>: 대화체도 읽고 단가표 단가를 참고해 채웁니다(인터넷 필요, 건당 몇십 원). <b>간단 채우기</b>: 인터넷 없이, 한 줄에 한 품목 형식만 읽습니다.'
+          : '지금은 <b>간단 채우기</b>만 됩니다: 한 줄에 품목 하나 <code>품명 [규격] [수량+단위] 단가</code>. 대화체를 읽는 AI 채우기는 클라우드 로그인 + AI 설정 후 생깁니다.'}</p>
+        <div class="checkbox-list" id="questions"></div>
         <p class="hint red" id="unparsed"></p>
       </details>
       <div class="g2"><label>견적일<input type="date" id="e-date" value="${e.date}"></label>
@@ -429,7 +445,7 @@ function editEstimate(id, fromJob) {
         <input data-k="qty" value="${esc(it.qty)}" inputmode="decimal" placeholder="수량" class="w-s">
         <input data-k="unit" value="${esc(it.unit)}" placeholder="단위" class="w-s">
         <input data-k="price" value="${it.price ? won(it.price) : ''}" inputmode="numeric" placeholder="단가" class="w-m">
-        <span class="amt">${won((Number(it.qty) || 0) * (Number(it.price) || 0))}</span>
+        <span class="amt ${it.price ? '' : 'red'}">${it.price ? won((Number(it.qty) || 0) * (Number(it.price) || 0)) : '단가?'}</span>
         <input data-k="note" value="${esc(it.note || '')}" placeholder="비고" class="w-m">
         <button type="button" class="x" data-idel="${i}">×</button></div>`).join('') || '<p class="empty">품목이 없습니다</p>';
       $$('.item input', root).forEach((inp) => inp.onchange = () => {
@@ -442,7 +458,38 @@ function editEstimate(id, fromJob) {
     };
     drawItems();
     $('#e-vat', root).onchange = drawTotals;
-    $('#ex', root).onclick = () => { $('#raw', root).value = EXAMPLE_TEXT; };
+    $('#ex', root).onclick = () => { $('#raw', root).value = Cloud.ready ? EXAMPLE_TEXT : RULE_EXAMPLE; };
+    $('#paste', root).onclick = async () => {
+      try { const t = await navigator.clipboard.readText(); if (t) { $('#raw', root).value = t; toast('붙여넣었습니다'); } else toast('복사된 글이 없습니다'); }
+      catch (err) { $('#raw', root).focus(); toast('글칸을 길게 눌러 붙여넣기 하세요'); }
+    };
+    const applyResult = (r) => {
+      const set = (sel, v) => { if (v) $(sel, root).value = v; };
+      set('#e-customer', r.customer); set('#e-phone', r.phone); set('#e-address', r.address);
+      set('#e-title', r.title); set('#e-memo', r.memo);
+      if (r.date && /^\d{4}-\d{2}-\d{2}$/.test(r.date)) set('#e-date', r.date);
+      if (r.vatMode) $('#e-vat', root).value = r.vatMode;
+      if (r.items && r.items.length) e.items = r.items.map((it) => ({ name: it.name || '', spec: it.spec || '', qty: Number(it.qty) || 1, unit: it.unit || '식', price: Math.round(Number(it.price) || 0), note: it.note || '' }));
+      const qs = [...(r.questions || [])];
+      const zero = e.items.filter((it) => !it.price).map((it) => `'${it.name}' 단가가 비어 있습니다`);
+      $('#questions', root).innerHTML = [...qs, ...zero].length
+        ? `<div class="warnbox"><b>확인해 주세요</b><ul>${[...qs, ...zero].map((q) => `<li>${esc(q)}</li>`).join('')}</ul></div>` : '';
+      drawItems();
+    };
+    const ai = $('#ai', root);
+    if (ai) ai.onclick = async () => {
+      const text = $('#raw', root).value.trim();
+      if (!text) { toast('먼저 카톡 내용을 붙여넣으세요'); return; }
+      ai.disabled = true; ai.textContent = '🤖 읽는 중… (10~30초)';
+      try {
+        const r = await Cloud.invoke('estimate-ai', { text, presets: state.settings.presets, today: ymd() });
+        applyResult(r.result); $('#unparsed', root).textContent = '';
+        toast(`품목 ${e.items.length}개를 채웠습니다. 아래에서 확인하세요`);
+        $('#items', root).scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } catch (err) {
+        alert('AI 채우기 실패: ' + err.message + '\n\n간단 채우기를 쓰거나 직접 입력하세요.');
+      } finally { ai.disabled = false; ai.textContent = '🤖 AI로 채우기'; }
+    };
     $('#parse', root).onclick = () => {
       const r = EstCore.parseEstimateText($('#raw', root).value);
       const set = (sel, v) => { if (v) $(sel, root).value = v; };
@@ -638,7 +685,7 @@ function drawCloud() {
   const box = $('#cloudbox'); if (!box) return;
   const c = Cloud.config(), st = Cloud.status;
   if (st.state === 'off') {
-    box.innerHTML = `<p class="hint">Supabase(무료 클라우드)에 저장합니다. 처음 한 번 설정이 필요합니다 → 저장소의 <b>plumbing/SETUP.md</b> 안내 1~3단계.</p>
+    box.innerHTML = `<p class="hint">Supabase(무료 클라우드)에 저장합니다. 처음 한 번 설정이 필요합니다 → <b>친구용_설정안내.md</b> 1~2단계.</p>
       <label>Supabase 주소<input id="c-url" value="${esc(c.supabaseUrl)}" placeholder="https://xxxx.supabase.co"></label>
       <label>공개 키 (anon / publishable)<input id="c-key" value="${esc(c.supabaseAnonKey)}"></label>
       <button class="btn primary" id="c-save">연결</button>`;
@@ -683,7 +730,7 @@ async function drawKakao() {
   let ks = null, err = '';
   try { ks = await Cloud.kakaoStatus(); } catch (e) { err = e.message; }
   box.innerHTML = `<p class="hint">작업일로부터 정한 날짜가 지났는데 돈을 다 못 받은 작업을 <b>매일 오전 9시</b>에 내 카톡(나와의 채팅)으로 보냅니다. 미수가 없으면 보내지 않습니다.</p>
-    ${err ? `<p class="red hint">상태 확인 실패: ${esc(err)} (SETUP.md 2단계 DB 설정을 했는지 확인)</p>` : ''}
+    ${err ? `<p class="red hint">상태 확인 실패: ${esc(err)} (설정안내 1단계 SQL 실행 확인)</p>` : ''}
     <p>${ks?.connected ? `✅ 카카오 연결됨 <small class="hint">(재연결 필요일: ${ks.refresh_expires_at ? fmtDate(ks.refresh_expires_at.slice(0, 10)) : '-'})</small>` : '❌ 카카오 연결 안 됨'}</p>
     ${ks?.last_sent_at ? `<p class="hint">마지막 확인: ${fmtTime(ks.last_sent_at)} — ${esc(ks.last_result || '')}</p>` : ''}
     <label class="chk"><input type="checkbox" id="k-on" ${n.enabled !== false ? 'checked' : ''}> 알림 받기</label>
@@ -696,7 +743,7 @@ async function drawKakao() {
   const saveN = async () => { state.settings.notify = { enabled: $('#k-on').checked, days: Math.max(1, Number($('#k-days').value) || 7) }; await saveSettings(); toast('알림 설정 저장'); };
   $('#k-on').onchange = saveN; $('#k-days').onchange = saveN;
   $('#k-conn').onclick = () => {
-    const key = Cloud.config().kakaoRestKey || prompt('카카오 REST API 키를 입력하세요 (SETUP.md 4단계)');
+    const key = Cloud.config().kakaoRestKey || prompt('카카오 REST API 키를 입력하세요 (설정안내 3단계)');
     if (!key) return;
     if (!Cloud.config().kakaoRestKey) Cloud.saveConfig({ ...Cloud.config(), kakaoRestKey: key.trim() });
     location.href = `https://kauth.kakao.com/oauth/authorize?response_type=code&client_id=${encodeURIComponent(key.trim())}&redirect_uri=${encodeURIComponent(kakaoRedirect())}&scope=talk_message&state=kakao`;
@@ -722,6 +769,19 @@ async function handleKakaoReturn() {
   try { await Cloud.invoke('kakao-auth', { code: q.get('code'), redirect_uri: kakaoRedirect() }); toast('카카오 연결 완료! 테스트 발송을 눌러보세요'); }
   catch (e) { alert('카카오 연결 실패: ' + e.message); }
   render();
+}
+
+// 카톡 등에서 [공유] → 업무수첩 으로 보낸 글 받기 (안드로이드에 설치한 경우)
+function handleShareTarget() {
+  const q = new URLSearchParams(location.search);
+  if (q.get('state') === 'kakao' || !(q.has('text') || q.has('title') || q.has('url'))) return;
+  const text = [q.get('title'), q.get('text'), q.get('url')].filter(Boolean).join('\n');
+  history.replaceState(null, '', location.pathname + '#est');
+  render();
+  if (!text) return;
+  editEstimate(null);
+  $('#raw').value = text;
+  toast(Cloud.ready ? '받은 글을 넣었습니다. [AI로 채우기]를 누르세요' : '받은 글을 넣었습니다');
 }
 
 /* ───────── 앱 설치 ───────── */
@@ -784,6 +844,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await handleKakaoReturn();
     const r = await Cloud.sync(); if (r.changed) await Cloud.onRemoteChange();
   } else if (location.search.includes('state=kakao')) await handleKakaoReturn();
+  handleShareTarget();
   window.addEventListener('online', () => Cloud.sync().then((r) => r.changed && Cloud.onRemoteChange()));
   document.addEventListener('visibilitychange', () => { if (!document.hidden) Cloud.sync().then((r) => r.changed && Cloud.onRemoteChange()); });
   setInterval(() => { if (!document.hidden) Cloud.sync().then((r) => r.changed && Cloud.onRemoteChange()); }, 5 * 60 * 1000);
