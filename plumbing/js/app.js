@@ -369,14 +369,7 @@ function renderEstList(el) {
   $$('[data-est]', el).forEach((c) => c.onclick = () => editEstimate(c.dataset.est));
 }
 
-const EXAMPLE_TEXT = `[카톡 예시]
-김철수: 사장님 안녕하세요 역삼동 래미안 101동 202호인데요
-김철수: 욕실 바닥에서 물이 새서 아랫집 천장이 젖었대요ㅠ 010-1234-5678
-나: 내일 오전에 가서 누수탐지 하고 배관 바꿔드릴게요
-나: 탐지 15만, 배관 15A 5미터 정도 미터당 12000, 타일 복구 2제곱 6만씩. 부가세 별도요
-김철수: 네 하자보수는 1년 되나요?
-나: 네 1년 해드려요`;
-const RULE_EXAMPLE = `고객: 김철수 010-1234-5678
+const EXAMPLE_TEXT = `고객: 김철수 010-1234-5678
 주소: 서울 강남구 역삼동 123-4 101동 202호
 공사: 욕실 바닥 누수 보수
 누수탐지 1식 15만
@@ -393,19 +386,14 @@ function editEstimate(id, fromJob) {
   openSheet(`
     <div class="sheethead"><h2>견적서</h2><button class="btn sm" data-close>닫기</button></div>
     <div class="form">
-      <details ${e.items.length ? '' : 'open'}><summary>💬 카톡·메모 붙여넣고 자동 채우기</summary>
-        <p class="hint">고객과 주고받은 카톡이나 메모를 <b>그대로</b> 붙여넣으세요. 형식 없어도 됩니다.</p>
+      <details ${e.items.length ? '' : 'open'}><summary>✍️ 글로 한 번에 입력 (자동 채우기)</summary>
         <textarea id="raw" rows="8" placeholder="${esc(EXAMPLE_TEXT)}">${esc(e.raw || '')}</textarea>
         <div class="row wrap">
           <button type="button" class="btn sm" id="paste">📋 붙여넣기</button>
           <button type="button" class="btn sm" id="ex">예시</button>
-          ${Cloud.ready ? '<button type="button" class="btn primary" id="ai">🤖 AI로 채우기</button>' : ''}
-          <button type="button" class="btn ${Cloud.ready ? 'sm' : 'primary'}" id="parse">${Cloud.ready ? '간단 채우기' : '자동 채우기 ↓'}</button>
+          <button type="button" class="btn primary" id="parse">자동 채우기 ↓</button>
         </div>
-        <p class="hint">${Cloud.ready
-          ? '<b>AI로 채우기</b>: 대화체도 읽고 단가표 단가를 참고해 채웁니다(인터넷 필요, 건당 몇십 원). <b>간단 채우기</b>: 인터넷 없이, 한 줄에 한 품목 형식만 읽습니다.'
-          : '지금은 <b>간단 채우기</b>만 됩니다: 한 줄에 품목 하나 <code>품명 [규격] [수량+단위] 단가</code>. 대화체를 읽는 AI 채우기는 클라우드 로그인 + AI 설정 후 생깁니다.'}</p>
-        <div class="checkbox-list" id="questions"></div>
+        <p class="hint">한 줄에 품목 하나: <code>품명 [규격] [수량+단위] 단가</code>. 금액은 15만, 150,000 모두 됩니다. 결과는 아래에서 고칠 수 있습니다.</p>
         <p class="hint red" id="unparsed"></p>
       </details>
       <div class="g2"><label>견적일<input type="date" id="e-date" value="${e.date}"></label>
@@ -458,37 +446,10 @@ function editEstimate(id, fromJob) {
     };
     drawItems();
     $('#e-vat', root).onchange = drawTotals;
-    $('#ex', root).onclick = () => { $('#raw', root).value = Cloud.ready ? EXAMPLE_TEXT : RULE_EXAMPLE; };
+    $('#ex', root).onclick = () => { $('#raw', root).value = EXAMPLE_TEXT; };
     $('#paste', root).onclick = async () => {
       try { const t = await navigator.clipboard.readText(); if (t) { $('#raw', root).value = t; toast('붙여넣었습니다'); } else toast('복사된 글이 없습니다'); }
       catch (err) { $('#raw', root).focus(); toast('글칸을 길게 눌러 붙여넣기 하세요'); }
-    };
-    const applyResult = (r) => {
-      const set = (sel, v) => { if (v) $(sel, root).value = v; };
-      set('#e-customer', r.customer); set('#e-phone', r.phone); set('#e-address', r.address);
-      set('#e-title', r.title); set('#e-memo', r.memo);
-      if (r.date && /^\d{4}-\d{2}-\d{2}$/.test(r.date)) set('#e-date', r.date);
-      if (r.vatMode) $('#e-vat', root).value = r.vatMode;
-      if (r.items && r.items.length) e.items = r.items.map((it) => ({ name: it.name || '', spec: it.spec || '', qty: Number(it.qty) || 1, unit: it.unit || '식', price: Math.round(Number(it.price) || 0), note: it.note || '' }));
-      const qs = [...(r.questions || [])];
-      const zero = e.items.filter((it) => !it.price).map((it) => `'${it.name}' 단가가 비어 있습니다`);
-      $('#questions', root).innerHTML = [...qs, ...zero].length
-        ? `<div class="warnbox"><b>확인해 주세요</b><ul>${[...qs, ...zero].map((q) => `<li>${esc(q)}</li>`).join('')}</ul></div>` : '';
-      drawItems();
-    };
-    const ai = $('#ai', root);
-    if (ai) ai.onclick = async () => {
-      const text = $('#raw', root).value.trim();
-      if (!text) { toast('먼저 카톡 내용을 붙여넣으세요'); return; }
-      ai.disabled = true; ai.textContent = '🤖 읽는 중… (10~30초)';
-      try {
-        const r = await Cloud.invoke('estimate-ai', { text, presets: state.settings.presets, today: ymd() });
-        applyResult(r.result); $('#unparsed', root).textContent = '';
-        toast(`품목 ${e.items.length}개를 채웠습니다. 아래에서 확인하세요`);
-        $('#items', root).scrollIntoView({ behavior: 'smooth', block: 'start' });
-      } catch (err) {
-        alert('AI 채우기 실패: ' + err.message + '\n\n간단 채우기를 쓰거나 직접 입력하세요.');
-      } finally { ai.disabled = false; ai.textContent = '🤖 AI로 채우기'; }
     };
     $('#parse', root).onclick = () => {
       const r = EstCore.parseEstimateText($('#raw', root).value);
@@ -781,7 +742,7 @@ function handleShareTarget() {
   if (!text) return;
   editEstimate(null);
   $('#raw').value = text;
-  toast(Cloud.ready ? '받은 글을 넣었습니다. [AI로 채우기]를 누르세요' : '받은 글을 넣었습니다');
+  toast('받은 글을 넣었습니다. [자동 채우기]를 누르세요');
 }
 
 /* ───────── 앱 설치 ───────── */
