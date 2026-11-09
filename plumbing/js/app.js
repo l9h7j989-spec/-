@@ -445,6 +445,7 @@ function editEstimate(id, fromJob) {
       <div class="actions wrap">
         <button class="btn primary big" id="e-save">저장</button>
         <button class="btn primary" id="e-hwp">⬇ 한글(HWPX) 받기</button>
+        <button class="btn primary" id="e-xlsx">⬇ 엑셀 받기</button>
         <button class="btn" id="e-print">🖨 인쇄 / PDF</button>
         ${e.jobId ? '' : '<button class="btn" id="e-tojob">작업으로 등록</button>'}
         ${id ? '<button class="btn danger" id="e-del">삭제</button>' : ''}
@@ -523,6 +524,20 @@ function editEstimate(id, fromJob) {
           downloadBlob(blob, name);
         }
       } catch (err) { console.error(err); alert('견적서 생성 실패: ' + err.message); }
+    };
+    $('#e-xlsx', root).onclick = async () => {
+      await save(true);
+      if (!e.items.length) { toast('품목을 1개 이상 넣어주세요'); return; }
+      try {
+        const tpl = (await DB.getKV('xlsxTemplate', null)) || await (await fetch('templates/estimate_template.xlsx')).arrayBuffer();
+        const { file, warnings } = await XlsxFill.fillXlsx(tpl, e, state.settings.company, EstCore, { JSZip, DOMParser, XMLSerializer, outType: 'blob' });
+        if (warnings.length) alert(warnings.join('\n'));
+        const name = `견적서_${(e.address || e.customer || '고객').replace(/[\\/:*?"<>|]/g, '')}_${e.date}.xlsx`;
+        const f = new File([file], name, { type: file.type });
+        if (navigator.canShare && navigator.canShare({ files: [f] }) && confirm('카톡 등으로 바로 보낼까요?\n(취소 = 휴대폰에 저장)')) {
+          await navigator.share({ files: [f], title: name }).catch(() => {});
+        } else downloadBlob(file, name);
+      } catch (err) { console.error(err); alert('엑셀 견적서 만들기 실패: ' + err.message); }
     };
     $('#e-print', root).onclick = async () => { await save(true); printEstimate(e); };
     const tj = $('#e-tojob', root);
@@ -623,7 +638,14 @@ function renderMore(el) {
       <button class="btn primary">저장</button></form></details>
     <details><summary>단가표 (견적서 빠른 추가)</summary>
       <div id="presets"></div><button class="btn sm" id="padd">＋ 품목</button> <button class="btn sm primary" id="psave">단가표 저장</button></details>
-    <details><summary>견적서 양식 (HWPX)</summary>
+    <details><summary>견적서 양식 (엑셀 · 한글)</summary>
+      <p><b>엑셀 양식</b></p>
+      <p class="hint">사장님이 쓰던 엑셀 견적서(.xlsx)를 올리면 그 파일 그대로(상호·도장 포함) 칸만 채워서 만들어 줍니다. 올리지 않으면 기본 양식에 ⚙️업체정보가 들어갑니다. <b>.xls 파일은 엑셀에서 [다른 이름으로 저장 → Excel 통합 문서(.xlsx)]</b>로 바꿔서 올리세요.</p>
+      <p id="xtplstate" class="hint"></p>
+      <label class="btn">엑셀 양식 올리기 (.xlsx)<input type="file" accept=".xlsx" hidden id="xtplin"></label>
+      <a class="btn" href="templates/estimate_template.xlsx" download="견적서_기본양식.xlsx">기본 양식 받기</a>
+      <button class="btn" id="xtplreset">기본 양식으로 되돌리기</button>
+      <p style="margin-top:14px"><b>한글 양식</b></p>
       <p class="hint">지금은 <b>예시 양식</b>을 씁니다. 실제 양식으로 바꾸려면: 한글에서 양식을 열고 값이 들어갈 자리에 <code>{{customer}}</code> 처럼 적은 뒤 <b>[다른 이름으로 저장 → HWPX]</b>로 저장해 아래에 올리세요. 품목 표는 한 줄에 <code>{{name}}</code> 등을 적어두면 품목 수만큼 늘어납니다.</p>
       <p class="hint">쓸 수 있는 자리표시자: <code>{{date}} {{customer}} {{phone}} {{address}} {{title}} {{memo}} {{company}} {{owner}} {{bizno}} {{company_phone}} {{company_address}} {{account}} {{supply}} {{vat}} {{total}} {{total_korean}}</code> / 품목 행: <code>{{no}} {{name}} {{spec}} {{qty}} {{unit}} {{price}} {{amount}} {{note}}</code> (한글 이름 {{고객}} {{품명}} 등도 됨)</p>
       <p id="tplstate" class="hint"></p>
@@ -673,6 +695,19 @@ function renderMore(el) {
       render();
     } catch (err) { alert('양식 등록 실패: ' + err.message); }
   };
+  DB.getKV('xlsxTemplateName', '').then((n) => { $('#xtplstate').textContent = n ? `사용 중인 엑셀 양식: ${n}` : '사용 중인 엑셀 양식: 기본 양식'; });
+  $('#xtplin').onchange = async (ev) => {
+    const f = ev.target.files[0]; if (!f) return;
+    const buf = await f.arrayBuffer();
+    try {
+      if (!(await XlsxFill.checkTemplate(buf, { JSZip }))) throw new Error('엑셀(.xlsx) 파일이 아닙니다');
+      await DB.setKV('xlsxTemplate', buf); await DB.setKV('xlsxTemplateName', f.name);
+      if (Cloud.ready) await Cloud.pushTemplate(buf, f.name, 'xlsx');
+      s.xlsxTemplateName = f.name; await saveSettings();
+      alert('엑셀 양식을 등록했습니다. 견적서에서 [엑셀 받기]로 확인해 보세요.'); render();
+    } catch (err) { alert('엑셀 양식 등록 실패: ' + (/zip|end of central/i.test(err.message) ? '.xls 파일은 안 됩니다. 엑셀에서 .xlsx로 저장해서 올려주세요' : err.message)); }
+  };
+  $('#xtplreset').onclick = async () => { await DB.del('kv', 'xlsxTemplate'); await DB.del('kv', 'xlsxTemplateName'); s.xlsxTemplateName = ''; await saveSettings(); toast('기본 엑셀 양식으로 되돌렸습니다'); render(); };
   $('#tplreset').onclick = async () => { await DB.del('kv', 'template'); await DB.del('kv', 'templateName'); s.templateName = ''; await saveSettings(); toast('예시 양식으로 되돌렸습니다'); render(); };
   $('#tsave').onclick = async () => { s.bandTemplate = $('#bt').value; s.smsTemplate = $('#st').value; s.asMonths = Number($('#asm').value) || 12; await saveSettings(); toast('저장'); };
   const cm = new Map();
