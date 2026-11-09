@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1565c0">
+<title>배관 업무수첩</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="top"><b>🔧 배관 업무수첩</b><button id="cloudbtn" class="cloud" onclick="location.hash='more'" aria-label="클라우드 상태"></button></header>
+<main id="view"></main>
+<nav id="nav">
+  <a href="#home" data-v="home"><span>🏠</span>오늘</a>
+  <a href="#cal" data-v="cal"><span>📅</span>달력</a>
+  <a href="#est" data-v="est"><span>📄</span>견적</a>
+  <a href="#money" data-v="money"><span>💰</span>수금</a>
+  <a href="#more" data-v="more"><span>⚙️</span>설정</a>
+</nav>
+<div id="sheet"><div id="sheet-body"></div></div>
+<div id="toast"></div>
+<div id="print"></div>
+<script src="config.js"></script>
+<script src="vendor/jszip.min.js"></script>
+<script src="vendor/supabase.js"></script>
+<script src="js/estimate-core.js"></script>
+<script src="js/hwpx.js"></script>
+<script src="js/db.js"></script>
+<script src="js/sync.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
