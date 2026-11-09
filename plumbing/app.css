@@ -138,3 +138,9 @@ details.sub-details summary { font-weight: 600; font-size: 14px; color: var(--su
 .card .pick { width: 22px; height: 22px; margin-right: 8px; accent-color: var(--pri); pointer-events: none; }
 .card .grow { flex: 1; }
 .btn[disabled] { opacity: .45; }
+
+.searchbox input { margin: 8px 0 4px; }
+.card.result mark { background: #ffe58a; color: inherit; border-radius: 3px; padding: 0 1px; }
+.tabs { display: flex; gap: 6px; margin: 12px 0 0; }
+.tabs button { flex: 1; min-height: 44px; border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 10px; font: inherit; font-weight: 600; cursor: pointer; }
+.tabs button.on { background: var(--pri); color: #fff; border-color: var(--pri); }
