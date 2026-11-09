@@ -104,7 +104,7 @@ export async function sendToMe(accessToken: string, text: string, appUrl: string
 // 미수금 계산 + 카톡 메시지 만들기 (순수 함수: 테스트 가능)
 
 export interface Job {
-  id: string; date: string; customer?: string; phone?: string; type?: string;
+  id: string; date: string; customer?: string; phone?: string; type?: string; desc?: string;
   amount?: number | string; paid?: number | string;
 }
 export interface UnpaidItem { job: Job; unpaid: number; days: number }
@@ -139,7 +139,8 @@ export function buildMessages(items: UnpaidItem[], minDays: number): string[] {
   const head = `[미수금 알림] ${minDays}일 이상 미입금 ${items.length}건\n합계 ${won(total)}원`;
   const lines = items.map((x, i) => {
     const d = x.job.date.slice(5).replace("-", "/");
-    const name = (x.job.customer || "고객없음").slice(0, 10);
+    const first = String(x.job.desc || "").split(/\r?\n/).map((l) => l.trim()).find(Boolean) || "";
+    const name = (x.job.customer || first || "고객없음").slice(0, 14);
     const type = (x.job.type || "").slice(0, 8);
     return `${i + 1}) ${d} ${name} ${type} ${won(x.unpaid)}원 (${x.days}일)`.slice(0, MAX);
   });

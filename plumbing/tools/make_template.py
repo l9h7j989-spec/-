@@ -1,103 +1,110 @@
-"""예시 견적서 HWPX 양식 생성기 (python-hwpx 사용).
+"""견적서 HWPX 양식 생성기 (python-hwpx 사용) — 사장님이 쓰던 엑셀 견적서 모양을 따름.
 
 앱은 이 양식 안의 {{자리표시자}} 를 실제 값으로 바꿔서 견적서를 만든다.
-품목 행은 {{name}} 이 들어있는 표의 행을 품목 수만큼 복제한다.
-실제 양식이 오면: 한글에서 양식을 열고 같은 {{자리표시자}} 를 적은 뒤 .hwpx 로 저장하면 된다.
+- 품목 행: {{name}} 이 있는 행을 품목 수만큼 복제 (빈 줄로 최소 줄 수를 채움)
+- 도장: BinData 안의 투명 그림(stamp)을 앱에서 사용자가 올린 도장 그림으로 바꿔 넣음
+
+사용: pip install python-hwpx && python tools/make_template.py templates/estimate_template.hwpx
 """
+import base64
 import sys
+import warnings
+
 from hwpx import HwpxDocument
 
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 out = sys.argv[1] if len(sys.argv) > 1 else "estimate_template.hwpx"
 doc = HwpxDocument.new()
 doc.set_page_margins(left=5669, right=5669, top=4252, bottom=4252)
+W = 48190  # 본문 폭
 
-title_cp = doc.ensure_run_style(bold=True, size=22)
-bold_cp = doc.ensure_run_style(bold=True, size=10)
-norm_cp = doc.ensure_run_style(size=10)
-small_cp = doc.ensure_run_style(size=9)
-total_cp = doc.ensure_run_style(bold=True, size=12)
+cp = lambda **k: doc.ensure_run_style(**k)
+title_cp = cp(bold=True, size=26, underline=True)
+date_cp = cp(size=12)
+site_cp = cp(bold=True, size=15, underline=True)
+company_cp = cp(bold=True, size=18)
+bold12 = cp(bold=True, size=12)
+bold12u = cp(bold=True, size=12, underline=True)
+norm10 = cp(size=10)
+total_cp = cp(bold=True, size=13)
+head_cp = cp(size=9)
+item_cp = cp(size=9.5)
+bold10 = cp(bold=True, size=10)
 
-def para(text, cp, align=None):
-    p = doc.add_paragraph(text, char_pr_id_ref=cp)
+
+def para(text, char, align=None):
+    p = doc.add_paragraph(text, char_pr_id_ref=char)
     if align:
-        idx = len(doc.paragraphs) - 1
-        doc.set_paragraph_format(paragraph_index=idx, alignment=align)
+        doc.set_paragraph_format(paragraph_index=len(doc.paragraphs) - 1, alignment=align)
     return p
 
-# 첫 문단(secPr 보유)은 비워 두고 제목
-p_title = para("견   적   서", title_cp, "CENTER")
-center_pr = p_title.element.get("paraPrIDRef")
-p_r = para("", norm_cp, "RIGHT")
-right_pr = p_r.element.get("paraPrIDRef")
-p_r.element.getparent().remove(p_r.element) if hasattr(p_r.element, "getparent") else None
 
-bf = doc.ensure_border_fill(border_color="#000000", border_width="0.12 mm")
-bf_head = doc.ensure_border_fill(border_color="#000000", border_width="0.12 mm", fill_color="#E8EEF5")
+# 정렬용 문단모양 id 얻기
+center_pr = para("見     積     書", title_cp, "CENTER").element.get("paraPrIDRef")
+right_pr = para("{{year}} 年  {{month}} 月  {{day}} 日", date_cp, "RIGHT").element.get("paraPrIDRef")
 
-def fill(cell, text, cp=norm_cp, pr=None):
-    ps = cell.paragraphs
-    ps[0].element.set("paraPrIDRef", str(pr)) if pr else None
+no_border = doc.styles.ensure_border_fill(border_color="#FFFFFF", border_width="0.1 mm", active_borders=[])
+line = doc.styles.ensure_border_fill(border_color="#000000", border_width="0.12 mm")
+green = doc.styles.ensure_border_fill(border_color="#000000", border_width="0.12 mm", fill_color="#CCFFCC")
+
+
+def fill(cell, text, char, pr=None):
     cell.set_text(text)
     for p in cell.paragraphs:
         if pr:
             p.element.set("paraPrIDRef", str(pr))
         for r in p.element.iter():
             if r.tag.endswith("}run"):
-                r.set("charPrIDRef", str(cp))
+                r.set("charPrIDRef", str(char))
 
-W = 48190  # 본문 폭 (A4 - 여백)
 
-# ── 1. 수신/공급자 표 ──
-info = doc.add_table(6, 4, width=W, border_fill_id_ref=bf)
-info.set_column_widths([7000, 17095, 7000, 17095])
+# ── 1. 머리 (테두리 없는 표: 왼쪽 현장, 오른쪽 업체) ──
+head = doc.add_table(5, 2, width=W, border_fill_id_ref=no_border)
+head.set_column_widths([25500, 22690])
 rows = [
-    ("견적일자", "{{date}}", "상    호", "{{company}}"),
-    ("수    신", "{{customer}} 귀하", "대 표 자", "{{owner}}"),
-    ("연 락 처", "{{phone}}", "사업자번호", "{{bizno}}"),
-    ("현장주소", "{{address}}", "연 락 처", "{{company_phone}}"),
-    ("공 사 명", "{{title}}", "주    소", "{{company_address}}"),
-    ("유효기간", "견적일로부터 {{valid_days}}일", "계좌번호", "{{account}}"),
+    (("{{site}}", site_cp, center_pr), ("{{company}}", company_cp, None)),
+    (("공사명 : {{title}}", bold12u, None), ("대  표 : {{owner}}  ", bold12, None)),
+    (("貴社에서 依賴하신 見積은", bold12, None), ("{{company_address}}", norm10, None)),
+    (("아래와 같습니다.", bold12, None), ("TEL : {{company_tel}}", norm10, None)),
+    (("", norm10, None), ("H.P : {{company_phone}}", norm10, None)),
 ]
-for r, row in enumerate(rows):
-    for c, t in enumerate(row):
-        cell = info.cell(r, c)
-        if c in (0, 2):
-            info.set_cell_border_fill(r, c, bf_head) if hasattr(info, "set_cell_border_fill") else None
-            fill(cell, t, bold_cp, center_pr)
-        else:
-            fill(cell, t, norm_cp)
+for r, cells in enumerate(rows):
+    for c, (t, ch, pr) in enumerate(cells):
+        head.set_cell_border_fill(r, c, no_border)
+        fill(head.cell(r, c), t, ch, pr)
 
-para("", norm_cp)
-para("아래와 같이 견적합니다.", norm_cp)
-p_sum = para("합계금액 : 일금 {{total_korean}}원정 (￦{{total}})  ※ 부가세 {{vat_label}}", total_cp)
-para("", small_cp)
+# 도장 자리 (투명 그림. 앱이 사용자 도장으로 교체)
+TRANSPARENT_PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")
+stamp_id = doc.add_image(TRANSPARENT_PNG, "png", item_id="stamp")
+owner_p = head.cell(1, 1).paragraphs[0]
+owner_p.add_picture(stamp_id, width=3800, height=3800, char_pr_id_ref=bold12)
 
-# ── 2. 품목 표 ──
-hdr = ("No", "품명", "규격", "수량", "단위", "단가", "금액", "비고")
-widths = [2600, 13000, 7000, 3800, 3600, 6400, 7000, 4790]
-items = doc.add_table(5, 8, width=W, border_fill_id_ref=bf)
-items.set_column_widths(widths)
+para("", norm10)
+
+# ── 2. 합계 금액 띠 ──
+band = doc.add_table(1, 1, width=W, border_fill_id_ref=green)
+band.set_cell_border_fill(0, 0, green)
+fill(band.cell(0, 0), "合計金額 : {{total_korean}}원整  (￦ {{total}} )  *부가가치세 {{vat_label}}", total_cp)
+
+para("", norm10)
+
+# ── 3. 품목 표 ──
+hdr = ("NO", "品  名  및  規  格", "單 位", "數 量", "單   價", "金       額", "備   考")
+items = doc.add_table(4, 7, width=W, border_fill_id_ref=line)
+items.set_column_widths([2600, 13400, 4400, 4400, 6100, 8900, 8390])
 for c, t in enumerate(hdr):
-    items.set_cell_border_fill(0, c, bf_head)
-    fill(items.cell(0, c), t, bold_cp, center_pr)
-ph = ("{{no}}", "{{name}}", "{{spec}}", "{{qty}}", "{{unit}}", "{{price}}", "{{amount}}", "{{note}}")
+    items.set_cell_border_fill(0, c, line)
+    fill(items.cell(0, c), t, head_cp, center_pr)
+ph = ("{{no}}", "{{name}}", "{{unit}}", "{{qty}}", "{{price}}", "{{amount}}", "{{note}}")
 for c, t in enumerate(ph):
-    fill(items.cell(1, c), t, small_cp, center_pr if c in (0, 3, 4) else (right_pr if c in (5, 6) else None))
-summary = [("공급가액", "{{supply}}"), ("부 가 세", "{{vat}}"), ("합    계", "{{total}}")]
-for i, (k, v) in enumerate(summary):
-    r = 2 + i
-    items.merge_cells(r, 0, r, 5)
-    items.merge_cells(r, 6, r, 7)
-    items.set_cell_border_fill(r, 0, bf_head)
-    fill(items.cell(r, 0), k, bold_cp, center_pr)
-    fill(items.cell(r, 6), v, bold_cp, right_pr)
-
-para("", norm_cp)
-para("※ 특기사항", bold_cp)
-para("{{memo}}", norm_cp)
-para("", norm_cp)
-para("{{company}}  대표 {{owner}}  (인)", bold_cp, "RIGHT")
+    fill(items.cell(1, c), t, item_cp, center_pr if c != 1 else center_pr)
+# 합계 행
+fill(items.cell(2, 1), "합    계", bold10, center_pr)
+fill(items.cell(2, 5), "{{total}}", bold10, center_pr)
+# 마지막 줄: 특기사항
+items.merge_cells(3, 0, 3, 6)
+fill(items.cell(3, 0), "{{memo}}", item_cp)
 
 doc.save_to_path(out)
-rep = doc.validate()
-print("validate:", rep)
+print("validate:", doc.validate())

@@ -58,7 +58,7 @@
     if (!(price > 0)) return null;
     s = s.slice(0, pm.index).replace(/(단가|@)\s*$/, '').trim();
     // 수량+단위 (끝쪽 우선)
-    let qty = 1, unit = '식';
+    let qty = '', unit = ''; // 엑셀 양식처럼 안 적으면 비워 둠 (금액은 수량 1로 계산)
     const qm = s.match(new RegExp('(\\d+(?:\\.\\d+)?)\\s*(' + unitRe + ')\\s*$')) ||
       s.match(new RegExp('(?:^|\\s)(\\d+(?:\\.\\d+)?)\\s*(' + unitRe + ')(?=\\s|$)'));
     if (qm) {
@@ -136,21 +136,27 @@
     return { fields, items, vatMode, unparsed };
   }
 
+  // 수량을 안 적으면 1로 계산 (엑셀 PRODUCT 와 같음)
+  const lineAmount = (it) => Math.round((Number(it.qty) || 1) * (Number(it.price) || 0));
+
+  // 사장님 양식: 합계 = 품목 합계. 부가세는 '별도/포함' 문구로만 표시하고 더하지 않음
   function calcTotals(items, vatMode) {
-    const sum = items.reduce((a, it) => a + Math.round((Number(it.qty) || 0) * (Number(it.price) || 0)), 0);
-    let supply, vat, total;
-    if (vatMode === 'included') { total = sum; supply = Math.round(sum / 1.1); vat = total - supply; }
-    else if (vatMode === 'none') { supply = sum; vat = 0; total = sum; }
-    else { supply = sum; vat = Math.round(sum * 0.1); total = supply + vat; }
-    return { supply, vat, total };
+    const sum = items.reduce((a, it) => a + (it.price ? lineAmount(it) : 0), 0);
+    let supply = sum, vat = 0;
+    if (vatMode === 'included') { supply = Math.round(sum / 1.1); vat = sum - supply; }
+    return { supply, vat, total: sum };
   }
 
-  const VAT_LABEL = { separate: '포함', included: '포함', none: '없음(면세/간이)' };
+  const VAT_LABEL = { separate: '별도', included: '포함', none: '없음' };
+  const MIN_ROWS = 12; // 양식처럼 빈 줄을 채워 최소 줄 수 맞춤
 
   // 양식에 넣을 값 묶음
   function buildTemplateData(est, company) {
     const t = calcTotals(est.items, est.vatMode);
+    const [y, m, d] = String(est.date || '').split('-');
     const data = {
+      year: y || '', month: m || '', day: d || '',
+      site: est.address || est.customer || '', company_tel: company.tel || '',
       date: est.date || '', customer: est.customer || '', phone: est.phone || '',
       address: est.address || '', title: est.title || '', memo: est.memo || '',
       valid_days: String(est.validDays || 30),
@@ -159,7 +165,7 @@
       account: company.account || '',
       supply: won(t.supply), vat: won(t.vat), total: won(t.total),
       total_korean: toKoreanMoney(t.total),
-      vat_label: VAT_LABEL[est.vatMode] || '포함',
+      vat_label: VAT_LABEL[est.vatMode] || '별도',
     };
     // 한글 키 별칭 (사용자 양식용)
     Object.assign(data, {
@@ -167,18 +173,19 @@
       공사명: data.title, 특기사항: data.memo, 상호: data.company, 대표: data.owner,
       사업자번호: data.bizno, 업체전화: data.company_phone, 업체주소: data.company_address,
       계좌: data.account, 공급가액: data.supply, 부가세: data.vat, 합계: data.total,
-      합계한글: data.total_korean,
+      합계한글: data.total_korean, 현장: data.site, 년: data.year, 월: data.month, 일: data.day,
     });
     const items = est.items.map((it, i) => ({
-      no: String(i + 1), name: it.name || '', spec: it.spec || '',
-      qty: String(it.qty ?? ''), unit: it.unit || '',
-      price: won(it.price), amount: won((Number(it.qty) || 0) * (Number(it.price) || 0)),
+      no: String(i + 1), name: [it.name, it.spec].filter(Boolean).join(' '), spec: it.spec || '',
+      qty: it.qty === '' || it.qty == null ? '' : String(it.qty), unit: it.unit || '',
+      price: it.price ? won(it.price) : '', amount: it.price ? won(lineAmount(it)) : '',
       note: it.note || '',
     }));
+    while (items.length < MIN_ROWS) items.push({ no: '', name: '', spec: '', qty: '', unit: '', price: '', amount: '', note: '' });
     return { data, items, totals: t };
   }
 
-  const api = { parseMoney, won, toKoreanMoney, parseItemLine, parseEstimateText, calcTotals, buildTemplateData };
+  const api = { lineAmount, parseMoney, won, toKoreanMoney, parseItemLine, parseEstimateText, calcTotals, buildTemplateData };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.EstCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);
