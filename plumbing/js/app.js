@@ -369,10 +369,28 @@ function editEstimate(id, fromJob) {
         <button class="btn" id="e-print">🖨 인쇄 / PDF</button>
         ${id ? '<button class="btn danger" id="e-del">삭제</button>' : ''}
       </div>
-      ${state.settings.company.name ? '' : '<p class="hint red">⚙️ 설정 → 업체정보를 넣거나 엑셀 양식을 올리면 상호·대표가 들어갑니다.</p>'}
+      <p class="hint red" id="tplwarn" hidden></p>
     </div>`, (root) => {
     if (!e.address && e.customer) e.address = e.customer; // 예전 견적: 고객명을 현장으로
     e.vatMode = 'separate'; e.memo = ''; e.customer = ''; e.phone = ''; // 양식: 부가세 별도, 고객·연락처·특기사항 없음
+    // 상호가 빠진 견적서가 나가지 않도록: 사장님 양식이 없고 업체정보도 비었으면 경고
+    const tplMissing = async (kind) => {
+      const own = await DB.getKV(kind === 'xlsx' ? 'xlsxTemplateName' : 'templateName', '');
+      return !own && !state.settings.company.name;
+    };
+    tplMissing('xlsx').then((miss) => {
+      const w = $('#tplwarn', root); if (!w || !miss) return;
+      w.hidden = false;
+      w.innerHTML = '⚠️ 사장님 엑셀 양식이 아직 안 올라가 있어 <b>상호·대표·도장이 빈 견적서</b>가 나옵니다. <a href="#more" id="gotpl">⚙️ 설정에서 엑셀 양식 올리기</a>';
+      $('#gotpl', root).onclick = () => { closeSheet(); location.hash = 'more'; };
+    });
+    const okToMake = async (kind) => {
+      if (!(await tplMissing(kind))) return true;
+      if (confirm('사장님 양식이 올라가 있지 않아 상호·대표·도장이 빈 견적서가 만들어집니다.\n\n[확인] 설정으로 가서 양식 올리기\n[취소] 그래도 빈 양식으로 만들기')) {
+        closeSheet(); location.hash = 'more'; return false;
+      }
+      return true;
+    };
     const read = () => {
       e.date = $('#e-date', root).value; e.address = $('#e-address', root).value.trim();
       e.title = $('#e-title', root).value.trim(); e.raw = $('#raw', root).value;
@@ -426,6 +444,7 @@ function editEstimate(id, fromJob) {
     $('#e-hwp', root).onclick = async () => {
       await save(true);
       if (!e.items.length) { toast('품목을 1개 이상 넣어주세요'); return; }
+      if (!(await okToMake('hwpx'))) return;
       try {
         const tpl = (await DB.getKV('template', null)) || await (await fetch('templates/estimate_template.hwpx')).arrayBuffer();
         const b = EstCore.buildTemplateData(e, state.settings.company);
@@ -443,6 +462,7 @@ function editEstimate(id, fromJob) {
     $('#e-xlsx', root).onclick = async () => {
       await save(true);
       if (!e.items.length) { toast('품목을 1개 이상 넣어주세요'); return; }
+      if (!(await okToMake('xlsx'))) return;
       try {
         const tpl = (await DB.getKV('xlsxTemplate', null)) || await (await fetch('templates/estimate_template.xlsx')).arrayBuffer();
         const { file, warnings } = await XlsxFill.fillXlsx(tpl, e, state.settings.company, EstCore, { JSZip, DOMParser, XMLSerializer, outType: 'blob' });
@@ -545,7 +565,7 @@ function renderMore(el) {
       <button class="btn primary">저장</button></form></details>
     <details><summary>자주 쓰는 품목 · 단가표 (견적서 빠른 추가)</summary>
       <div id="presets"></div><button class="btn sm" id="padd">＋ 품목</button> <button class="btn sm primary" id="psave">단가표 저장</button></details>
-    <details><summary>견적서 양식 (엑셀 · 한글)</summary>
+    <details id="tpl-sec"><summary>견적서 양식 (엑셀 · 한글)</summary>
       <p><b>엑셀 양식</b></p>
       <p class="hint">사장님이 쓰던 엑셀 견적서(.xlsx)를 올리면 그 파일 그대로(상호·도장 포함) 칸만 채워서 만들어 줍니다. 올리지 않으면 기본 양식에 ⚙️업체정보가 들어갑니다. <b>.xls 파일은 엑셀에서 [다른 이름으로 저장 → Excel 통합 문서(.xlsx)]</b>로 바꿔서 올리세요.</p>
       <p id="xtplstate" class="hint"></p>
@@ -602,7 +622,10 @@ function renderMore(el) {
       render();
     } catch (err) { alert('양식 등록 실패: ' + err.message); }
   };
-  DB.getKV('xlsxTemplateName', '').then((n) => { $('#xtplstate').textContent = n ? `사용 중인 엑셀 양식: ${n}` : '사용 중인 엑셀 양식: 기본 양식'; });
+  DB.getKV('xlsxTemplateName', '').then((n) => {
+    $('#xtplstate').innerHTML = n ? `✅ 사용 중인 엑셀 양식: ${esc(n)}` : '<span class="red">⚠️ 사장님 엑셀 양식이 아직 없습니다 → 아래 [엑셀 양식 올리기]</span>';
+    if (!n) $('#tpl-sec').open = true;
+  });
   $('#xtplin').onchange = async (ev) => {
     const f = ev.target.files[0]; if (!f) return;
     const buf = await f.arrayBuffer();
