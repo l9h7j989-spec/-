@@ -177,17 +177,50 @@ function renderCal(el) {
   const dayJobs = state.jobs.filter((j) => j.date === sel).sort((a, b) => (a.time || '').localeCompare(b.time || ''));
   const dayTodos = state.todos.filter((t) => t.date === sel);
   el.innerHTML = `
+    <div class="searchbox"><input type="search" id="calq" placeholder="🔍 기록·할 일 검색 (예: 209동, 분배기)" value="${esc(state.calQuery || '')}" autocomplete="off"></div>
+    <div id="calres"></div>
     <div class="calhead"><button class="btn sm" id="pm">‹</button><h2>${y}년 ${mo + 1}월</h2><button class="btn sm" id="nm">›</button></div>
     <div class="legend"><span class="dot rec">n</span> 기록 수 <span class="tdot"></span> 할 일</div>
     <div class="cal">${WEEK.map((w) => `<div class="wk">${w}</div>`).join('')}${cells}</div>
     <h3>${fmtDate(sel)} <button class="btn sm primary" id="add-job">＋ 기록</button></h3>
     ${dayJobs.map(jobCard).join('') || '<p class="empty">기록 없음</p>'}
     <h3>할 일</h3>${todoList(dayTodos)}${addTodoForm(sel)}`;
+  const q = $('#calq');
+  q.oninput = () => { state.calQuery = q.value; drawSearch($('#calres')); };
+  drawSearch($('#calres'));
   $('#pm').onclick = () => { state.calMonth = new Date(y, mo - 1, 1); render(); };
   $('#nm').onclick = () => { state.calMonth = new Date(y, mo + 1, 1); render(); };
   $$('.cell[data-d]', el).forEach((c) => c.onclick = () => { state.calSel = c.dataset.d; render(); });
   $('#add-job').onclick = () => editJob(null, sel);
   bindJobCards(el); bindTodos(el);
+}
+
+// 기록·할 일 검색: 띄어쓰기로 나눈 단어가 모두 들어간 것 (최근 날짜 순)
+function drawSearch(box) {
+  const words = String(state.calQuery || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) { box.innerHTML = ''; return; }
+  const hit = (t) => { const l = String(t || '').toLowerCase(); return words.every((w) => l.includes(w)); };
+  const res = [
+    ...state.jobs.filter((j) => hit([j.desc, j.customer, j.address, j.memo].join(' '))).map((j) => ({ kind: 'job', id: j.id, date: j.date, text: j.desc || j.customer || '' })),
+    ...state.todos.filter((t) => hit(t.text)).map((t) => ({ kind: 'todo', id: t.id, date: t.date, text: t.text, done: t.done })),
+  ].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  const mark = (t) => {
+    // 첫 번째 찾은 단어 근처만 잘라서 보여주고 강조
+    const l = t.toLowerCase(); const i = Math.max(0, l.indexOf(words[0]) - 20);
+    let out = esc((i > 0 ? '…' : '') + t.slice(i, i + 90).replace(/\s+/g, ' ') + (t.length > i + 90 ? '…' : ''));
+    for (const w of words) out = out.replace(new RegExp(w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), (m) => `<mark>${m}</mark>`);
+    return out;
+  };
+  box.innerHTML = `<p class="hint">찾은 것 ${res.length}건 ${res.length ? '— 누르면 그 날짜로 갑니다' : ''}</p>` + res.slice(0, 100).map((r) => `
+    <div class="card result" data-kind="${r.kind}" data-id="${r.id}" data-date="${r.date}">
+      <div class="sub">${fmtDate(r.date)} ${r.date ? r.date.slice(0, 4) + '년' : ''} · ${r.kind === 'job' ? '기록' : '할 일' + (r.done ? ' ✔' : '')}</div>
+      <div class="desc">${mark(r.text)}</div></div>`).join('');
+  $$('.result', box).forEach((c) => c.onclick = () => {
+    const d = c.dataset.date; state.calSel = d; state.calMonth = new Date(d + 'T00:00');
+    state.calQuery = ''; render();
+    if (c.dataset.kind === 'job') editJob(c.dataset.id);
+    else document.querySelector('.todos')?.scrollIntoView({ behavior: 'smooth' });
+  });
 }
 
 /* ───────── 사진 ───────── */
@@ -298,19 +331,24 @@ async function shareToBand(j) {
 
 /* ───────── 견적서 ───────── */
 function renderEstList(el) {
-  const list = [...state.estimates].sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.id.localeCompare(a.id));
+  const tab = state.docTab || 'est'; // 'est' 견적서, 'op' 소견서
+  const isOp = tab === 'op';
+  const list = state.estimates.filter((x) => (x.doc === 'opinion') === isOp).sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.id.localeCompare(a.id));
   const sel = state.estSel; // null = 보통 화면, Set = 선택 모드
-  el.innerHTML = `<h2>견적서 <small>${list.length}건</small></h2>
+  el.innerHTML = `<div class="tabs"><button class="${isOp ? '' : 'on'}" id="tab-est">📄 견적서</button><button class="${isOp ? 'on' : ''}" id="tab-op">💧 누수 소견서</button></div>
+    <h2>${isOp ? '누수 소견서' : '견적서'} <small>${list.length}건</small></h2>
     ${sel ? `<div class="selbar">
         <button class="btn sm" id="sel-all">${sel.size === list.length && list.length ? '전체 해제' : '전체 선택'}</button>
         <button class="btn sm danger" id="sel-del" ${sel.size ? '' : 'disabled'}>선택 삭제 (${sel.size})</button>
         <button class="btn sm danger" id="all-del" ${list.length ? '' : 'disabled'}>전체 삭제</button>
         <button class="btn sm" id="sel-cancel">취소</button></div>`
-    : `<button class="btn primary big" id="new-est">＋ 새 견적서</button>
+    : `<button class="btn primary big" id="new-est">＋ 새 ${isOp ? '소견서' : '견적서'}</button>
        ${list.length ? '<div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn sm" id="sel-on">☑ 선택 · 삭제</button></div>' : ''}`}
-    ${list.map((e) => { const t = EstCore.calcTotals(e.items, e.vatMode); return `<div class="card ${sel && sel.has(e.id) ? 'picked' : ''}" data-est="${e.id}">
-      <div class="row">${sel ? `<input type="checkbox" class="pick" ${sel.has(e.id) ? 'checked' : ''} aria-label="선택">` : ''}<b class="grow">${esc(e.address || e.customer || '(현장 미입력)')}</b><span>${won(t.total)}원</span></div>
-      <div class="sub">${fmtDate(e.date)}${e.title ? ' · ' + esc(e.title) : ''}</div></div>`; }).join('') || '<p class="empty">저장된 견적서가 없습니다</p>'}`;
+    ${list.map((e) => { const t = isOp ? null : EstCore.calcTotals(e.items || [], e.vatMode); return `<div class="card ${sel && sel.has(e.id) ? 'picked' : ''}" data-est="${e.id}">
+      <div class="row">${sel ? `<input type="checkbox" class="pick" ${sel.has(e.id) ? 'checked' : ''} aria-label="선택">` : ''}<b class="grow">${esc((isOp ? e.location : e.address || e.customer) || '(위치 미입력)')}</b>${isOp ? '' : `<span>${won(t.total)}원</span>`}</div>
+      <div class="sub">${fmtDate(e.date)}${isOp ? (e.repair ? ' · ' + esc(e.repair.slice(0, 40)) : '') : (e.title ? ' · ' + esc(e.title) : '')}</div></div>`; }).join('') || `<p class="empty">저장된 ${isOp ? '소견서' : '견적서'}가 없습니다</p>`}`;
+  $('#tab-est').onclick = () => { state.docTab = 'est'; state.estSel = null; render(); };
+  $('#tab-op').onclick = () => { state.docTab = 'op'; state.estSel = null; render(); };
   const delMany = async (ids, msg) => {
     if (!ids.length || !confirm(msg)) return;
     for (const id of ids) await DB.del('estimates', id);
@@ -319,15 +357,76 @@ function renderEstList(el) {
   };
   if (sel) {
     $('#sel-all').onclick = () => { state.estSel = sel.size === list.length ? new Set() : new Set(list.map((x) => x.id)); render(); };
-    $('#sel-del').onclick = () => delMany([...sel], `선택한 견적서 ${sel.size}건을 삭제할까요?\n(되돌릴 수 없습니다)`);
-    $('#all-del').onclick = () => delMany(list.map((x) => x.id), `견적서 ${list.length}건을 모두 삭제할까요?\n(되돌릴 수 없습니다)`);
+    $('#sel-del').onclick = () => delMany([...sel], `선택한 ${isOp ? '소견서' : '견적서'} ${sel.size}건을 삭제할까요?\n(되돌릴 수 없습니다)`);
+    $('#all-del').onclick = () => delMany(list.map((x) => x.id), `${isOp ? '소견서' : '견적서'} ${list.length}건을 모두 삭제할까요?\n(되돌릴 수 없습니다)`);
     $('#sel-cancel').onclick = () => { state.estSel = null; render(); };
     $$('[data-est]', el).forEach((c) => c.onclick = () => { const id = c.dataset.est; if (sel.has(id)) sel.delete(id); else sel.add(id); render(); });
   } else {
-    $('#new-est').onclick = () => editEstimate(null);
+    $('#new-est').onclick = () => (isOp ? editOpinion(null) : editEstimate(null));
     const on = $('#sel-on'); if (on) on.onclick = () => { state.estSel = new Set(); render(); };
-    $$('[data-est]', el).forEach((c) => c.onclick = () => editEstimate(c.dataset.est));
+    $$('[data-est]', el).forEach((c) => c.onclick = () => (isOp ? editOpinion(c.dataset.est) : editEstimate(c.dataset.est)));
   }
+}
+
+/* ───────── 누수 소견서 ─────────
+ * 사장님 소견서 양식(.hwp)에서 수리 내역 · 누수 발생 위치 · 누수 발생 원인(= 수리 내역) · 날짜만 바꿔 HWP 로 만든다. */
+function editOpinion(id) {
+  const o = id ? structuredClone(state.estimates.find((x) => x.id === id)) : { id: uid(), doc: 'opinion', date: ymd(), location: '', repair: '' };
+  openSheet(`
+    <div class="sheethead"><h2>누수 소견서</h2><button class="btn sm" data-close>닫기</button></div>
+    <div class="form">
+      <p class="hint red" id="opwarn" hidden></p>
+      <label>날짜 <small>(소견서 맨 아래 날짜)</small><input type="date" id="o-date" value="${o.date}"></label>
+      <label>누수 발생 위치 <small>(파일 이름이 됨)</small><input id="o-loc" value="${esc(o.location)}" placeholder="예: 미메이드아파트 209동 603호"></label>
+      <label>수리 내역<textarea id="o-repair" rows="5" placeholder="예: DRF하수배관고무패킹 경화로인한 누수 발생하여 부품 교체 및 704호천정 세척 하였음">${esc(o.repair)}</textarea></label>
+      <div class="row wrap"><button type="button" class="btn sm" id="o-paste">📋 붙여넣기</button></div>
+      <div class="totals"><small>누수 발생 원인에는 <b>수리 내역과 같은 글</b>이 들어갑니다.</small>
+        <div style="display:block"><small>파일 이름: <b id="o-fname"></b></small></div></div>
+      <div class="actions wrap">
+        <button class="btn primary big" id="o-save">저장</button>
+        <button class="btn primary" id="o-hwp">⬇ 한글(HWP) 받기</button>
+        ${id ? '<button class="btn danger" id="o-del">삭제</button>' : ''}
+      </div>
+    </div>`, (root) => {
+    const fname = () => `${($('#o-loc', root).value.trim() || '누수위치').replace(/[\\/:*?"<>|]/g, '')} 누수소견서.hwp`;
+    const showName = () => { $('#o-fname', root).textContent = fname(); };
+    $('#o-loc', root).oninput = showName; showName();
+    DB.getKV('opinionTemplateName', '').then((n) => {
+      if (n) return;
+      const w = $('#opwarn', root); w.hidden = false;
+      w.innerHTML = '⚠️ 소견서 양식(.hwp)이 아직 없습니다. <a href="#more" id="goop">⚙️ 설정에서 소견서 양식 올리기</a>';
+      $('#goop', root).onclick = () => { closeSheet(); location.hash = 'more'; };
+    });
+    $('#o-paste', root).onclick = async () => {
+      try { const t = await navigator.clipboard.readText(); if (t) { $('#o-repair', root).value = t.trim(); toast('붙여넣었습니다'); } }
+      catch (err) { $('#o-repair', root).focus(); toast('칸을 길게 눌러 붙여넣기 하세요'); }
+    };
+    const save = async (quiet) => {
+      o.date = $('#o-date', root).value; o.location = $('#o-loc', root).value.trim(); o.repair = $('#o-repair', root).value.trim();
+      await DB.put('estimates', o);
+      const i = state.estimates.findIndex((x) => x.id === o.id); if (i >= 0) state.estimates[i] = o; else state.estimates.push(o);
+      if (!quiet) toast('소견서를 저장했습니다');
+    };
+    $('#o-save', root).onclick = async () => { await save(); closeSheet(); };
+    $('#o-hwp', root).onclick = async () => {
+      await save(true);
+      if (!o.location || !o.repair) { toast('누수 발생 위치와 수리 내역을 넣어주세요'); return; }
+      const tpl = await DB.getKV('opinionTemplate', null);
+      if (!tpl) { if (confirm('소견서 양식(.hwp)을 먼저 올려야 합니다. 설정으로 갈까요?')) { closeSheet(); location.hash = 'more'; } return; }
+      try {
+        const bytes = await Hwp5.fillOpinion(tpl, { date: o.date, location: o.location, repair: o.repair });
+        const name = fname();
+        const blob = new Blob([bytes], { type: 'application/x-hwp' });
+        const file = new File([blob], name, { type: 'application/x-hwp' });
+        if (navigator.canShare && navigator.canShare({ files: [file] }) && confirm('카톡 등으로 바로 보낼까요?\n(취소 = 휴대폰에 저장)')) {
+          await navigator.share({ files: [file], title: name }).catch(() => {});
+        } else downloadBlob(blob, name);
+      } catch (err) { console.error(err); alert('소견서 만들기 실패: ' + err.message); }
+    };
+    const d = $('#o-del', root);
+    if (d) d.onclick = async () => { if (!confirm('소견서를 삭제할까요?')) return; await DB.del('estimates', o.id); state.estimates = state.estimates.filter((x) => x.id !== o.id); closeSheet(); };
+    $('[data-close]', root).onclick = closeSheet;
+  });
 }
 
 const EXAMPLE_TEXT = `현장: 미메이드아파트 209동 603호
@@ -565,6 +664,10 @@ function renderMore(el) {
       <button class="btn primary">저장</button></form></details>
     <details><summary>자주 쓰는 품목 · 단가표 (견적서 빠른 추가)</summary>
       <div id="presets"></div><button class="btn sm" id="padd">＋ 품목</button> <button class="btn sm primary" id="psave">단가표 저장</button></details>
+    <details id="op-sec"><summary>누수 소견서 양식 (.hwp)</summary>
+      <p class="hint">사장님 소견서 한글 파일(.hwp)을 올리면, 수리 내역 · 누수 발생 위치 · 누수 발생 원인 · 날짜만 바꾸고 나머지는 그대로 둔 HWP 파일을 만들어 줍니다.</p>
+      <p id="optplstate" class="hint"></p>
+      <label class="btn">소견서 양식 올리기 (.hwp)<input type="file" accept=".hwp" hidden id="optplin"></label></details>
     <details id="tpl-sec"><summary>견적서 양식 (엑셀 · 한글)</summary>
       <p><b>엑셀 양식</b></p>
       <p class="hint">사장님이 쓰던 엑셀 견적서(.xlsx)를 올리면 그 파일 그대로(상호·도장 포함) 칸만 채워서 만들어 줍니다. 올리지 않으면 기본 양식에 ⚙️업체정보가 들어갑니다. <b>.xls 파일은 엑셀에서 [다른 이름으로 저장 → Excel 통합 문서(.xlsx)]</b>로 바꿔서 올리세요.</p>
@@ -636,6 +739,22 @@ function renderMore(el) {
       s.xlsxTemplateName = f.name; await saveSettings();
       alert('엑셀 양식을 등록했습니다. 견적서에서 [엑셀 받기]로 확인해 보세요.'); render();
     } catch (err) { alert('엑셀 양식 등록 실패: ' + (/zip|end of central/i.test(err.message) ? '.xls 파일은 안 됩니다. 엑셀에서 .xlsx로 저장해서 올려주세요' : err.message)); }
+  };
+  DB.getKV('opinionTemplateName', '').then((n) => {
+    $('#optplstate').innerHTML = n ? `✅ 사용 중인 소견서 양식: ${esc(n)}` : '<span class="red">⚠️ 소견서 양식이 아직 없습니다 → 아래 [소견서 양식 올리기]</span>';
+    if (!n) $('#op-sec').open = true;
+  });
+  $('#optplin').onchange = async (ev) => {
+    const f = ev.target.files[0]; if (!f) return;
+    const buf = await f.arrayBuffer();
+    try {
+      const chk = Hwp5.checkOpinionTemplate(buf);
+      if (!chk.ok) throw new Error(chk.why);
+      await DB.setKV('opinionTemplate', buf); await DB.setKV('opinionTemplateName', f.name);
+      if (Cloud.ready) await Cloud.pushTemplate(buf, f.name, 'hwp');
+      s.opinionTemplateName = f.name; await saveSettings();
+      alert('소견서 양식을 등록했습니다.'); render();
+    } catch (err) { alert('소견서 양식 등록 실패: ' + (/header|CFB|signature|Unsupported|corrupt/i.test(err.message) ? '한글(.hwp) 파일이 아닙니다. (.hwpx 는 안 됩니다)' : err.message)); }
   };
   $('#xtplreset').onclick = async () => { await DB.del('kv', 'xlsxTemplate'); await DB.del('kv', 'xlsxTemplateName'); s.xlsxTemplateName = ''; await saveSettings(); toast('기본 엑셀 양식으로 되돌렸습니다'); render(); };
   $('#tplreset').onclick = async () => { await DB.del('kv', 'template'); await DB.del('kv', 'templateName'); s.templateName = ''; await saveSettings(); toast('예시 양식으로 되돌렸습니다'); render(); };
