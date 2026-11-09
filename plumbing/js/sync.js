@@ -145,17 +145,24 @@ const Cloud = (() => {
     await DB.put('photos', { id, blob: data }, { fromSync: true });
     return data;
   }
-  async function pushTemplate(buf, name) {
+  // 견적서 양식 파일: 한글(hwpx) / 엑셀(xlsx)
+  const TPL = {
+    hwpx: { kv: 'template', nameKv: 'templateName', setting: 'templateName', type: 'application/hwp+zip' },
+    xlsx: { kv: 'xlsxTemplate', nameKv: 'xlsxTemplateName', setting: 'xlsxTemplateName', type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
+  };
+  async function pushTemplate(buf, name, kind = 'hwpx') {
     if (!client || !user) return;
-    await client.storage.from('photos').upload(`${user.id}/template.hwpx`, new Blob([buf]), { upsert: true, contentType: 'application/hwp+zip' });
+    await client.storage.from('photos').upload(`${user.id}/template.${kind}`, new Blob([buf]), { upsert: true, contentType: TPL[kind].type });
   }
   async function pullTemplate(settings) {
-    const remoteName = settings.templateName || '';
-    const localName = await DB.getKV('templateName', '');
-    if (remoteName === localName) return;
-    if (!remoteName) { await DB.del('kv', 'template'); await DB.del('kv', 'templateName'); return; }
-    const { data } = await client.storage.from('photos').download(`${user.id}/template.hwpx`);
-    if (data) { await DB.setKV('template', await data.arrayBuffer()); await DB.setKV('templateName', remoteName); }
+    for (const [kind, t] of Object.entries(TPL)) {
+      const remoteName = settings[t.setting] || '';
+      const localName = await DB.getKV(t.nameKv, '');
+      if (remoteName === localName) continue;
+      if (!remoteName) { await DB.del('kv', t.kv); await DB.del('kv', t.nameKv); continue; }
+      const { data } = await client.storage.from('photos').download(`${user.id}/template.${kind}`);
+      if (data) { await DB.setKV(t.kv, await data.arrayBuffer()); await DB.setKV(t.nameKv, remoteName); }
+    }
   }
 
   // 이 기기에서 처음 로그인하면, 그동안 기기에만 있던 기록을 모두 올린다
