@@ -112,3 +112,8 @@ label.inline { display: flex; align-items: center; gap: 8px; margin: 6px 0 10px;
   .paper table.info td { text-align: left; }
 }
 .addtodo button { min-height: 44px; padding: 0 16px; border-radius: 10px; border: 0; background: var(--pri); color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+.top { display: flex; align-items: center; justify-content: space-between; }
+.cloud { background: rgba(255,255,255,.18); color: #fff; border: 0; border-radius: 14px; padding: 4px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+.cloud.error { background: #ffcdd2; color: #b71c1c; } .cloud.off:empty { display: none; }
+.banner { display: flex; align-items: center; gap: 8px; background: var(--pri-weak); border-radius: var(--radius); padding: 8px 8px 8px 12px; margin: 10px 0; font-size: 14px; }
+.banner .btn { margin-left: auto; }

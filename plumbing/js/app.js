@@ -23,6 +23,7 @@ const DEFAULT_SETTINGS = {
   bandTemplate: '[{유형}] {지역}\n{내용}\n\n#누수 #배관 #{유형}',
   smsTemplate: '안녕하세요 {상호}입니다. {날짜} {내용} 공사대금 {금액}원 입금 부탁드립니다.\n{계좌}',
   asMonths: 12,
+  notify: { enabled: true, days: 7 },
 };
 
 const state = { settings: null, jobs: [], todos: [], estimates: [], calMonth: new Date(), calSel: ymd(), moneyMonth: ymd().slice(0, 7) };
@@ -66,6 +67,7 @@ function closeSheet() { $('#sheet').classList.remove('open'); document.body.clas
 const VIEWS = { home: renderHome, cal: renderCal, est: renderEstList, money: renderMoney, more: renderMore };
 function route() { return (location.hash.slice(1) || 'home').split('/')[0]; }
 function render() {
+  if (!state.settings) return; // 아직 불러오는 중
   const v = VIEWS[route()] ? route() : 'home';
   $$('#nav a').forEach((a) => a.classList.toggle('on', a.dataset.v === v));
   VIEWS[v]($('#view'));
@@ -123,6 +125,7 @@ function renderHome(el) {
       <div class="stat"><small>이번 달 매출</small><b>${won(sales)}</b></div>
       <div class="stat warn" onclick="location.hash='money'"><small>받을 돈 (${unpaidCnt}건)</small><b>${won(unpaid)}</b></div>
     </div>
+    ${!isStandalone() && (installEvt || isIOS()) && !localStorage.getItem('hideInstall') ? `<div class="banner">📲 홈 화면에 설치하면 앱처럼 씁니다 <button class="btn sm primary" id="q-inst">설치</button><button class="x" id="q-hide">×</button></div>` : ''}
     <div class="quick"><button class="btn primary" id="q-job">＋ 작업 기록</button><button class="btn" id="q-est">＋ 견적서</button></div>
     <h3>오늘 작업 <small>${todayJobs.length}건</small></h3>
     ${todayJobs.map(jobCard).join('') || '<p class="empty">오늘 기록된 작업이 없습니다</p>'}
@@ -133,6 +136,8 @@ function renderHome(el) {
     ${asSoon.length ? `<h3>A/S 기간 곧 끝남 (30일 이내)</h3>${asSoon.map(jobCard).join('')}` : ''}`;
   $('#q-job').onclick = () => editJob(null, today);
   $('#q-est').onclick = () => editEstimate(null);
+  const qi = $('#q-inst'); if (qi) qi.onclick = async () => { if (installEvt) { installEvt.prompt(); await installEvt.userChoice; installEvt = null; render(); } else location.hash = 'more'; };
+  const qh = $('#q-hide'); if (qh) qh.onclick = () => { try { localStorage.setItem('hideInstall', '1'); } catch (e) { /* 무시 */ } render(); };
   bindJobCards(el); bindTodos(el);
 }
 
@@ -187,8 +192,10 @@ async function resizeImage(file, max = 1600) {
 const photoURLs = new Map();
 async function photoURL(id) {
   if (photoURLs.has(id)) return photoURLs.get(id);
-  const p = await DB.get('photos', id); if (!p) return '';
-  const u = URL.createObjectURL(p.blob); photoURLs.set(id, u); return u;
+  let blob = (await DB.get('photos', id))?.blob;
+  if (!blob && Cloud.ready) blob = await Cloud.fetchPhoto(id);
+  if (!blob) return '';
+  const u = URL.createObjectURL(blob); photoURLs.set(id, u); return u;
 }
 
 /* ───────── 작업 편집 ───────── */
@@ -327,7 +334,8 @@ async function shareToBand(j) {
   }).replace(/#\s/g, '').trim();
   const files = [];
   for (const pid of j.photos || []) {
-    const p = await DB.get('photos', pid);
+    let p = await DB.get('photos', pid);
+    if (!p && Cloud.ready) { const b = await Cloud.fetchPhoto(pid); if (b) p = { blob: b }; }
     if (p) files.push(new File([p.blob], `photo_${files.length + 1}.jpg`, { type: 'image/jpeg' }));
   }
   const markShared = async () => {
@@ -553,7 +561,10 @@ function renderMoney(el) {
 function renderMore(el) {
   const s = state.settings, c = s.company;
   el.innerHTML = `<h2>설정</h2>
-    <details open><summary>업체정보 (견적서에 들어감)</summary><form id="cf" class="form">
+    <details id="cloud-sec" ${Cloud.status.state === 'on' || Cloud.status.state === 'error' ? '' : 'open'}><summary>☁️ 클라우드 저장 (폰 바꿔도 안전)</summary><div id="cloudbox" class="form"></div></details>
+    <details id="kakao-sec"><summary>💬 미수금 카톡 알림</summary><div id="kakaobox" class="form"></div></details>
+    <details><summary>📱 앱으로 설치</summary><div id="installbox"></div></details>
+    <details ${c.name ? '' : 'open'}><summary>업체정보 (견적서에 들어감)</summary><form id="cf" class="form">
       <div class="g2"><label>상호<input name="name" value="${esc(c.name)}"></label><label>대표자<input name="owner" value="${esc(c.owner)}"></label></div>
       <div class="g2"><label>사업자번호<input name="bizno" value="${esc(c.bizno)}"></label><label>연락처<input name="phone" value="${esc(c.phone)}"></label></div>
       <label>주소<input name="address" value="${esc(c.address)}"></label>
@@ -575,11 +586,11 @@ function renderMore(el) {
       <button class="btn primary" id="tsave">저장</button></div></details>
     <details><summary>고객 목록</summary><div id="custs"></div></details>
     <details><summary>백업 · 복원 (중요)</summary>
-      <p class="hint">모든 기록은 <b>이 휴대폰 브라우저 안</b>에만 저장됩니다. 폰을 바꾸거나 브라우저 데이터를 지우면 사라지니, 주기적으로 백업 파일을 받아 카톡 '나에게 보내기'나 구글드라이브에 보관하세요.</p>
+      <p class="hint">클라우드 저장을 켜면 자동으로 안전하게 보관됩니다. 이 백업 파일은 추가 보험용입니다(클라우드를 안 쓸 때는 꼭 주기적으로 받아두세요).</p>
       <label class="chk"><input type="checkbox" id="bkph" checked> 사진 포함</label>
       <button class="btn primary" id="bk">⬇ 백업 받기</button>
       <label class="btn">⬆ 백업 복원<input type="file" accept=".json" hidden id="rs"></label></details>
-    <p class="hint">배관·누수 업무수첩 v1 · 데이터는 서버로 전송되지 않습니다.</p>`;
+    <p class="hint">배관·누수 업무수첩 v2 · 클라우드를 켜지 않으면 데이터는 이 기기 밖으로 나가지 않습니다.</p>`;
   $('#cf').onsubmit = async (e) => { e.preventDefault(); for (const k of Object.keys(c)) c[k] = e.target[k].value.trim(); await saveSettings(); toast('업체정보 저장'); };
   const drawPresets = () => {
     $('#presets').innerHTML = s.presets.map((p, i) => `<div class="item" data-i="${i}"><input data-k="name" value="${esc(p.name)}" placeholder="품명" class="w-name"><input data-k="spec" value="${esc(p.spec)}" placeholder="규격" class="w-s"><input data-k="unit" value="${esc(p.unit)}" placeholder="단위" class="w-s"><input data-k="price" value="${won(p.price)}" placeholder="단가" class="w-m" inputmode="numeric"><button class="x" data-pdel="${i}">×</button></div>`).join('');
@@ -599,17 +610,137 @@ function renderMore(el) {
       const x = await z.file('Contents/section0.xml').async('string');
       const keys = [...new Set((x.match(/\{\{[^}<]+\}\}/g) || []))];
       await DB.setKV('template', buf); await DB.setKV('templateName', f.name);
+      if (Cloud.ready) await Cloud.pushTemplate(buf, f.name);
+      s.templateName = f.name; await saveSettings();
       alert(`양식을 등록했습니다.\n찾은 자리표시자 ${keys.length}개: ${keys.join(' ') || '(없음 — 글자가 쪼개져 저장됐을 수 있습니다)'}`);
       render();
     } catch (err) { alert('양식 등록 실패: ' + err.message); }
   };
-  $('#tplreset').onclick = async () => { await DB.del('kv', 'template'); await DB.del('kv', 'templateName'); toast('예시 양식으로 되돌렸습니다'); render(); };
+  $('#tplreset').onclick = async () => { await DB.del('kv', 'template'); await DB.del('kv', 'templateName'); s.templateName = ''; await saveSettings(); toast('예시 양식으로 되돌렸습니다'); render(); };
   $('#tsave').onclick = async () => { s.bandTemplate = $('#bt').value; s.smsTemplate = $('#st').value; s.asMonths = Number($('#asm').value) || 12; await saveSettings(); toast('저장'); };
   const cm = new Map();
   state.jobs.forEach((j) => { if (!j.customer) return; const k = j.customer + '|' + (j.phone || ''); const v = cm.get(k) || { name: j.customer, phone: j.phone, n: 0, s: 0, u: 0, last: '' }; v.n++; v.s += Number(j.amount) || 0; v.u += unpaidOf(j); if (j.date > v.last) v.last = j.date; cm.set(k, v); });
   $('#custs').innerHTML = `<table class="tbl"><tr><th>고객</th><th>횟수</th><th>총액</th><th>미수</th><th>최근</th></tr>${[...cm.values()].sort((a, b) => b.last.localeCompare(a.last)).map((v) => `<tr><td>${esc(v.name)}<br><small>${v.phone ? `<a href="tel:${esc(v.phone)}">${esc(v.phone)}</a>` : ''}</small></td><td>${v.n}</td><td class="r">${won(v.s)}</td><td class="r ${v.u ? 'red' : ''}">${won(v.u)}</td><td>${fmtDate(v.last)}</td></tr>`).join('') || '<tr><td colspan="5">작업 기록이 쌓이면 자동으로 만들어집니다</td></tr>'}</table>`;
+  drawCloud(); drawKakao(); drawInstall();
   $('#bk').onclick = backup;
   $('#rs').onchange = restore;
+}
+
+/* ───────── 클라우드 화면 ───────── */
+const fmtTime = (iso) => { if (!iso) return '없음'; const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+function drawCloudBadge() {
+  const b = $('#cloudbtn'); if (!b) return;
+  const st = Cloud.status.state;
+  b.textContent = { off: '☁️ 꺼짐', login: '☁️ 로그인', syncing: '☁️ 동기화 중', on: '☁️ 저장됨', error: '⚠️ 동기화 오류' }[st] || '';
+  b.className = 'cloud ' + st;
+}
+function drawCloud() {
+  const box = $('#cloudbox'); if (!box) return;
+  const c = Cloud.config(), st = Cloud.status;
+  if (st.state === 'off') {
+    box.innerHTML = `<p class="hint">Supabase(무료 클라우드)에 저장합니다. 처음 한 번 설정이 필요합니다 → 저장소의 <b>plumbing/SETUP.md</b> 안내 1~3단계.</p>
+      <label>Supabase 주소<input id="c-url" value="${esc(c.supabaseUrl)}" placeholder="https://xxxx.supabase.co"></label>
+      <label>공개 키 (anon / publishable)<input id="c-key" value="${esc(c.supabaseAnonKey)}"></label>
+      <button class="btn primary" id="c-save">연결</button>`;
+    $('#c-save').onclick = async () => {
+      const ok = await Cloud.saveConfig({ ...c, supabaseUrl: $('#c-url').value.trim().replace(/\/$/, ''), supabaseAnonKey: $('#c-key').value.trim() });
+      if (Cloud.status.state === 'off') toast('주소나 키를 확인하세요'); else if (!ok) toast('이제 로그인하세요');
+      drawCloud();
+    };
+    return;
+  }
+  if (st.state === 'login') {
+    box.innerHTML = `<p class="hint">이 이메일·비밀번호로 어느 폰에서든 같은 기록을 봅니다.</p>
+      <label>이메일<input id="c-email" type="email" autocomplete="username"></label>
+      <label>비밀번호 (6자 이상)<input id="c-pw" type="password" autocomplete="current-password"></label>
+      <div class="row wrap"><button class="btn primary" id="c-in">로그인</button><button class="btn" id="c-up">처음이면 가입</button><button class="btn sm" id="c-reset">연결 정보 바꾸기</button></div>`;
+    const go = async (fn) => {
+      const e = $('#c-email').value.trim(), p = $('#c-pw').value;
+      if (!e || p.length < 6) { toast('이메일과 6자 이상 비밀번호를 넣으세요'); return; }
+      try {
+        if (fn === 'up') { const r = await Cloud.signUp(e, p); if (r === 'confirm') { alert('메일함에서 가입 확인 링크를 누른 뒤 로그인하세요.'); return; } await Cloud.sync({ full: true }); }
+        else await Cloud.signIn(e, p);
+        await loadAll(); toast('로그인 완료. 기록을 맞췄습니다'); render();
+      } catch (err) { alert('실패: ' + err.message); }
+    };
+    $('#c-in').onclick = () => go('in'); $('#c-up').onclick = () => go('up');
+    $('#c-reset').onclick = async () => { await Cloud.saveConfig({ ...c, supabaseUrl: '', supabaseAnonKey: '' }); drawCloud(); };
+    return;
+  }
+  box.innerHTML = `<p>✅ <b>${esc(Cloud.user?.email || '')}</b> 로 저장 중</p>
+    <p class="hint">마지막 동기화: ${fmtTime(st.lastSync)} ${st.state === 'error' ? `<br><span class="red">오류: ${esc(st.error)}</span>` : ''}</p>
+    <p class="hint">저장하면 몇 초 안에 자동으로 올라가고, 인터넷이 끊기면 다시 연결될 때 올라갑니다.</p>
+    <div class="row wrap"><button class="btn primary" id="c-sync">지금 동기화</button><button class="btn" id="c-out">로그아웃</button></div>`;
+  $('#c-sync').onclick = async () => { const r = await Cloud.sync(); if (r.error) toast('동기화 실패'); else { await loadAll(); toast('동기화 완료'); render(); } };
+  $('#c-out').onclick = async () => { if (confirm('로그아웃할까요? 이 폰의 기록은 그대로 남습니다.')) { await Cloud.signOut(); render(); } };
+}
+
+const kakaoRedirect = () => location.origin + location.pathname;
+async function drawKakao() {
+  const box = $('#kakaobox'); if (!box) return;
+  const n = state.settings.notify || { enabled: true, days: 7 };
+  if (!Cloud.ready) { box.innerHTML = '<p class="hint">먼저 위의 클라우드 저장에 로그인하세요. (알림은 서버가 매일 클라우드 기록을 보고 보냅니다)</p>'; return; }
+  let ks = null, err = '';
+  try { ks = await Cloud.kakaoStatus(); } catch (e) { err = e.message; }
+  box.innerHTML = `<p class="hint">작업일로부터 정한 날짜가 지났는데 돈을 다 못 받은 작업을 <b>매일 오전 9시</b>에 내 카톡(나와의 채팅)으로 보냅니다. 미수가 없으면 보내지 않습니다.</p>
+    ${err ? `<p class="red hint">상태 확인 실패: ${esc(err)} (SETUP.md 2단계 DB 설정을 했는지 확인)</p>` : ''}
+    <p>${ks?.connected ? `✅ 카카오 연결됨 <small class="hint">(재연결 필요일: ${ks.refresh_expires_at ? fmtDate(ks.refresh_expires_at.slice(0, 10)) : '-'})</small>` : '❌ 카카오 연결 안 됨'}</p>
+    ${ks?.last_sent_at ? `<p class="hint">마지막 확인: ${fmtTime(ks.last_sent_at)} — ${esc(ks.last_result || '')}</p>` : ''}
+    <label class="chk"><input type="checkbox" id="k-on" ${n.enabled !== false ? 'checked' : ''}> 알림 받기</label>
+    <label class="inline">며칠 지나면 알릴까요 <input type="number" id="k-days" min="1" max="90" value="${Number(n.days) || 7}" style="width:80px">일</label>
+    <div class="row wrap">
+      <button class="btn primary" id="k-conn">${ks?.connected ? '카카오 다시 연결' : '카카오 연결'}</button>
+      ${ks?.connected ? '<button class="btn" id="k-test">지금 테스트 발송</button><button class="btn danger" id="k-off">연결 끊기</button>' : ''}
+    </div>
+    <p class="hint">카카오 디벨로퍼스에 등록할 Redirect URI: <code>${esc(kakaoRedirect())}</code></p>`;
+  const saveN = async () => { state.settings.notify = { enabled: $('#k-on').checked, days: Math.max(1, Number($('#k-days').value) || 7) }; await saveSettings(); toast('알림 설정 저장'); };
+  $('#k-on').onchange = saveN; $('#k-days').onchange = saveN;
+  $('#k-conn').onclick = () => {
+    const key = Cloud.config().kakaoRestKey || prompt('카카오 REST API 키를 입력하세요 (SETUP.md 4단계)');
+    if (!key) return;
+    if (!Cloud.config().kakaoRestKey) Cloud.saveConfig({ ...Cloud.config(), kakaoRestKey: key.trim() });
+    location.href = `https://kauth.kakao.com/oauth/authorize?response_type=code&client_id=${encodeURIComponent(key.trim())}&redirect_uri=${encodeURIComponent(kakaoRedirect())}&scope=talk_message&state=kakao`;
+  };
+  const t = $('#k-test');
+  if (t) t.onclick = async () => {
+    t.disabled = true; t.textContent = '보내는 중…';
+    try { await Cloud.sync(); const r = await Cloud.invoke('kakao-notify', { mode: 'test' }); alert('결과: ' + (r.result || 'OK') + '\n카톡 "나와의 채팅"을 확인하세요.'); }
+    catch (e) { alert('발송 실패: ' + e.message); }
+    drawKakao();
+  };
+  const off = $('#k-off');
+  if (off) off.onclick = async () => { if (!confirm('카카오 알림 연결을 끊을까요?')) return; await Cloud.rpcDisconnect(); drawKakao(); };
+}
+
+// 카카오 로그인 후 돌아왔을 때 (?code=...&state=kakao)
+async function handleKakaoReturn() {
+  const q = new URLSearchParams(location.search);
+  if (q.get('state') !== 'kakao' || !(q.get('code') || q.get('error'))) return;
+  history.replaceState(null, '', location.pathname + '#more');
+  if (q.get('error')) { alert('카카오 연결 취소/실패: ' + (q.get('error_description') || q.get('error'))); return; }
+  if (!Cloud.ready) { alert('클라우드 로그인 후 다시 연결하세요'); return; }
+  try { await Cloud.invoke('kakao-auth', { code: q.get('code'), redirect_uri: kakaoRedirect() }); toast('카카오 연결 완료! 테스트 발송을 눌러보세요'); }
+  catch (e) { alert('카카오 연결 실패: ' + e.message); }
+  render();
+}
+
+/* ───────── 앱 설치 ───────── */
+let installEvt = null;
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; if (route() === 'more' || route() === 'home') render(); });
+window.addEventListener('appinstalled', () => { installEvt = null; toast('앱으로 설치했습니다. 홈 화면에서 여세요'); });
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+function installHTML() {
+  if (isStandalone()) return '<p>✅ 앱으로 실행 중입니다.</p>';
+  if (installEvt) return '<button class="btn primary big" id="do-install">📲 홈 화면에 앱 설치</button>';
+  if (isIOS()) return '<p class="hint"><b>아이폰:</b> Safari 아래쪽 <b>공유 버튼(□↑)</b> → <b>홈 화면에 추가</b> → 추가. (Safari에서만 됩니다)</p>';
+  return '<p class="hint"><b>안드로이드:</b> Chrome 오른쪽 위 <b>⋮ 메뉴</b> → <b>앱 설치</b>(또는 홈 화면에 추가). 삼성 인터넷은 메뉴 → <b>현재 페이지 추가 → 홈 화면</b>.</p>';
+}
+function drawInstall() {
+  const box = $('#installbox'); if (!box) return;
+  box.innerHTML = installHTML() + '<p class="hint">설치하면 주소창 없이 앱처럼 열리고, 인터넷이 없어도 켜집니다.</p>';
+  const b = $('#do-install', box);
+  if (b) b.onclick = async () => { installEvt.prompt(); await installEvt.userChoice; installEvt = null; render(); };
 }
 
 function downloadBlob(blob, name) {
@@ -627,7 +758,7 @@ async function restore(e) {
   try {
     const d = JSON.parse(await f.text());
     if (d.app !== 'plumbing-biz') throw new Error('이 앱의 백업 파일이 아닙니다');
-    if (!confirm(`백업(${d.at?.slice(0, 10)})으로 덮어쓸까요? 지금 기록은 사라집니다.`)) return;
+    if (!confirm(`백업(${d.at?.slice(0, 10)})으로 덮어쓸까요? 지금 기록은 사라집니다.${Cloud.ready ? '\n(클라우드에만 있는 기록은 다음 동기화 때 다시 내려옵니다)' : ''}`)) return;
     for (const s of ['jobs', 'todos', 'estimates', 'photos']) await DB.clear(s);
     for (const j of d.jobs || []) await DB.put('jobs', j);
     for (const t of d.todos || []) await DB.put('todos', t);
@@ -644,6 +775,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('#sheet').addEventListener('click', (e) => { if (e.target.id === 'sheet') closeSheet(); });
   await loadAll();
   render();
+  // 클라우드 연결
+  Cloud.onStatus(() => { drawCloudBadge(); if (route() === 'more' && !$('#sheet').classList.contains('open')) drawCloud(); });
+  DB.onChange(() => Cloud.scheduleSync());
+  Cloud.onRemoteChange = async () => { await loadAll(); if (!$('#sheet').classList.contains('open')) render(); };
+  drawCloudBadge();
+  if (await Cloud.init()) {
+    await handleKakaoReturn();
+    const r = await Cloud.sync(); if (r.changed) await Cloud.onRemoteChange();
+  } else if (location.search.includes('state=kakao')) await handleKakaoReturn();
+  window.addEventListener('online', () => Cloud.sync().then((r) => r.changed && Cloud.onRemoteChange()));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) Cloud.sync().then((r) => r.changed && Cloud.onRemoteChange()); });
+  setInterval(() => { if (!document.hidden) Cloud.sync().then((r) => r.changed && Cloud.onRemoteChange()); }, 5 * 60 * 1000);
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 });

@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
-<header class="top"><b>🔧 배관 업무수첩</b></header>
+<header class="top"><b>🔧 배관 업무수첩</b><button id="cloudbtn" class="cloud" onclick="location.hash='more'" aria-label="클라우드 상태"></button></header>
 <main id="view"></main>
 <nav id="nav">
   <a href="#home" data-v="home"><span>🏠</span>오늘</a>
@@ -24,10 +24,13 @@
 <div id="sheet"><div id="sheet-body"></div></div>
 <div id="toast"></div>
 <div id="print"></div>
+<script src="config.js"></script>
 <script src="vendor/jszip.min.js"></script>
+<script src="vendor/supabase.js"></script>
 <script src="js/estimate-core.js"></script>
 <script src="js/hwpx.js"></script>
 <script src="js/db.js"></script>
+<script src="js/sync.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
