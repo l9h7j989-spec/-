@@ -475,10 +475,10 @@ function editEstimate(id, fromJob) {
       const own = await DB.getKV(kind === 'xlsx' ? 'xlsxTemplateName' : 'templateName', '');
       return !own && !state.settings.company.name;
     };
-    tplMissing('xlsx').then((miss) => {
-      const w = $('#tplwarn', root); if (!w || !miss) return;
+    DB.getKV('xlsxTemplateName', '').then((n) => {
+      const w = $('#tplwarn', root); if (!w || n) return;
       w.hidden = false;
-      w.innerHTML = '⚠️ 사장님 엑셀 양식이 아직 안 올라가 있어 <b>상호·대표·도장이 빈 견적서</b>가 나옵니다. <a href="#more" id="gotpl">⚙️ 설정에서 엑셀 양식 올리기</a>';
+      w.innerHTML = '⚠️ 사장님 엑셀 견적서 양식이 아직 없습니다. <a href="#more" id="gotpl">⚙️ 설정에서 양식 올리기 (처음 한 번)</a>';
       $('#gotpl', root).onclick = () => { closeSheet(); location.hash = 'more'; };
     });
     const okToMake = async (kind) => {
@@ -554,9 +554,9 @@ function editEstimate(id, fromJob) {
     $('#e-xlsx', root).onclick = async () => {
       await save(true);
       if (!e.items.length) { toast('품목을 1개 이상 넣어주세요'); return; }
-      if (!(await okToMake('xlsx'))) return;
+      const tpl = await DB.getKV('xlsxTemplate', null);
+      if (!tpl) { if (confirm('사장님 엑셀 견적서 양식을 먼저 올려야 합니다. 설정으로 갈까요?')) { closeSheet(); location.hash = 'more'; } return; }
       try {
-        const tpl = (await DB.getKV('xlsxTemplate', null)) || await (await fetch('templates/estimate_template.xlsx')).arrayBuffer();
         const stamp = state.settings.company.stamp ? new Uint8Array(await (await fetch(state.settings.company.stamp)).arrayBuffer()) : null;
         const { file, warnings } = await XlsxFill.fillXlsx(tpl, e, state.settings.company, EstCore, { JSZip, DOMParser, XMLSerializer, outType: 'blob', stamp });
         if (warnings.length) alert(warnings.join('\n'));
@@ -655,16 +655,14 @@ function renderMore(el) {
     <details><summary>자주 쓰는 품목 · 단가표 (견적서 빠른 추가)</summary>
       <div id="presets"></div><button class="btn sm" id="padd">＋ 품목</button> <button class="btn sm primary" id="psave">단가표 저장</button></details>
     <details id="op-sec"><summary>누수 소견서 양식 (.hwp)</summary>
-      <p class="hint">사장님 소견서 한글 파일(.hwp)을 올리면, 수리 내역 · 누수 발생 위치 · 누수 발생 원인 · 날짜만 바꾸고 나머지는 그대로 둔 HWP 파일을 만들어 줍니다.</p>
+      <p class="hint">사장님 소견서 한글 파일(.hwp)을 <b>처음 한 번</b> 올리면, 수리 내역 · 누수 발생 위치 · 누수 발생 원인 · 날짜만 바꾸고 나머지는 그대로 둔 HWP 파일을 만들어 줍니다. 양식은 이 폰과 로그인한 클라우드에만 저장됩니다.</p>
       <p id="optplstate" class="hint"></p>
       <label class="btn">소견서 양식 올리기 (.hwp)<input type="file" accept=".hwp" hidden id="optplin"></label></details>
     <details id="tpl-sec"><summary>견적서 양식 (엑셀 · 한글)</summary>
       <p><b>엑셀 양식</b></p>
-      <p class="hint">사장님이 쓰던 엑셀 견적서(.xlsx)를 올리면 그 파일 그대로(상호·도장 포함) 칸만 채워서 만들어 줍니다. 올리지 않으면 기본 양식에 ⚙️업체정보가 들어갑니다. <b>.xls 파일은 엑셀에서 [다른 이름으로 저장 → Excel 통합 문서(.xlsx)]</b>로 바꿔서 올리세요.</p>
+      <p class="hint">사장님 엑셀 견적서(.xlsx)를 <b>처음 한 번</b> 올리면 그 파일 그대로(상호·도장 포함) 칸만 채워서 만들어 줍니다. 양식은 <b>이 폰과 로그인한 클라우드에만</b> 저장되고 인터넷에 공개되지 않습니다. 같은 계정으로 로그인한 다른 폰에도 자동으로 들어갑니다.</p>
       <p id="xtplstate" class="hint"></p>
       <label class="btn">엑셀 양식 올리기 (.xlsx)<input type="file" accept=".xlsx" hidden id="xtplin"></label>
-      <a class="btn" href="templates/estimate_template.xlsx" download="견적서_기본양식.xlsx">기본 양식 받기</a>
-      <button class="btn" id="xtplreset">기본 양식으로 되돌리기</button>
       <p style="margin-top:14px"><b>한글 양식</b></p>
       <p class="hint">지금은 <b>예시 양식</b>을 씁니다. 실제 양식으로 바꾸려면: 한글에서 양식을 열고 값이 들어갈 자리에 <code>{{customer}}</code> 처럼 적은 뒤 <b>[다른 이름으로 저장 → HWPX]</b>로 저장해 아래에 올리세요. 품목 표는 한 줄에 <code>{{name}}</code> 등을 적어두면 품목 수만큼 늘어납니다.</p>
       <p class="hint">쓸 수 있는 자리표시자: <code>{{date}} {{customer}} {{phone}} {{address}} {{title}} {{memo}} {{company}} {{owner}} {{bizno}} {{company_phone}} {{company_address}} {{account}} {{supply}} {{vat}} {{total}} {{total_korean}}</code> / 품목 행: <code>{{no}} {{name}} {{spec}} {{qty}} {{unit}} {{price}} {{amount}} {{note}}</code> (한글 이름 {{고객}} {{품명}} 등도 됨)</p>
@@ -711,7 +709,7 @@ function renderMore(el) {
     } catch (err) { alert('양식 등록 실패: ' + err.message); }
   };
   DB.getKV('xlsxTemplateName', '').then((n) => {
-    $('#xtplstate').innerHTML = n ? `✅ 사용 중인 엑셀 양식: ${esc(n)}` : '<span class="red">⚠️ 사장님 엑셀 양식이 아직 없습니다 → 아래 [엑셀 양식 올리기]</span>';
+    $('#xtplstate').innerHTML = n ? `✅ 사용 중인 엑셀 양식: ${esc(n)} ${Cloud.ready ? '(클라우드에 보관됨)' : '(이 폰에만 있음 — 클라우드에 로그인하면 자동 보관)'}` : '<span class="red">⚠️ 사장님 엑셀 양식이 아직 없습니다 → 아래 [엑셀 양식 올리기]</span>';
     if (!n) $('#tpl-sec').open = true;
   });
   $('#xtplin').onchange = async (ev) => {
@@ -726,7 +724,7 @@ function renderMore(el) {
     } catch (err) { alert('엑셀 양식 등록 실패: ' + (/zip|end of central/i.test(err.message) ? '.xls 파일은 안 됩니다. 엑셀에서 .xlsx로 저장해서 올려주세요' : err.message)); }
   };
   DB.getKV('opinionTemplateName', '').then((n) => {
-    $('#optplstate').innerHTML = n ? `✅ 사용 중인 소견서 양식: ${esc(n)}` : '<span class="red">⚠️ 소견서 양식이 아직 없습니다 → 아래 [소견서 양식 올리기]</span>';
+    $('#optplstate').innerHTML = n ? `✅ 사용 중인 소견서 양식: ${esc(n)} ${Cloud.ready ? '(클라우드에 보관됨)' : '(이 폰에만 있음 — 클라우드에 로그인하면 자동 보관)'}` : '<span class="red">⚠️ 소견서 양식이 아직 없습니다 → 아래 [소견서 양식 올리기]</span>';
     if (!n) $('#op-sec').open = true;
   });
   $('#optplin').onchange = async (ev) => {
@@ -741,7 +739,6 @@ function renderMore(el) {
       alert('소견서 양식을 등록했습니다.'); render();
     } catch (err) { alert('소견서 양식 등록 실패: ' + (/header|CFB|signature|Unsupported|corrupt/i.test(err.message) ? '한글(.hwp) 파일이 아닙니다. (.hwpx 는 안 됩니다)' : err.message)); }
   };
-  $('#xtplreset').onclick = async () => { await DB.del('kv', 'xlsxTemplate'); await DB.del('kv', 'xlsxTemplateName'); s.xlsxTemplateName = ''; await saveSettings(); toast('기본 엑셀 양식으로 되돌렸습니다'); render(); };
   $('#tplreset').onclick = async () => { await DB.del('kv', 'template'); await DB.del('kv', 'templateName'); s.templateName = ''; await saveSettings(); toast('예시 양식으로 되돌렸습니다'); render(); };
   const cm = new Map();
   state.jobs.forEach((j) => { if (!j.customer) return; const k = j.customer + '|' + (j.phone || ''); const v = cm.get(k) || { name: j.customer, phone: j.phone, n: 0, s: 0, u: 0, last: '' }; v.n++; v.s += Number(j.amount) || 0; v.u += unpaidOf(j); if (j.date > v.last) v.last = j.date; cm.set(k, v); });
