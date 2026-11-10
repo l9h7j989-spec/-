@@ -476,7 +476,7 @@ function editEstimate(id, fromJob) {
       return !own && !state.settings.company.name;
     };
     DB.getKV('xlsxTemplateName', '').then((n) => {
-      const w = $('#tplwarn', root); if (!w || n) return;
+      const w = $('#tplwarn', root); if (!w || /\.xls$/i.test(n || '')) return;
       w.hidden = false;
       w.innerHTML = '⚠️ 사장님 엑셀 견적서 양식이 아직 없습니다. <a href="#more" id="gotpl">⚙️ 설정에서 양식 올리기 (처음 한 번)</a>';
       $('#gotpl', root).onclick = () => { closeSheet(); location.hash = 'more'; };
@@ -555,18 +555,11 @@ function editEstimate(id, fromJob) {
       await save(true);
       if (!e.items.length) { toast('품목을 1개 이상 넣어주세요'); return; }
       const tpl = await DB.getKV('xlsxTemplate', null);
-      if (!tpl) { if (confirm('사장님 엑셀 견적서 양식을 먼저 올려야 합니다. 설정으로 갈까요?')) { closeSheet(); location.hash = 'more'; } return; }
+      if (!tpl || !XlsFill.isXls(tpl)) { if (confirm('사장님 엑셀 견적서 양식(.xls)을 먼저 올려야 합니다. 설정으로 갈까요?')) { closeSheet(); location.hash = 'more'; } return; }
       try {
         const base = `견적서_${(e.address || e.customer || '고객').replace(/[\\/:*?"<>|]/g, '')}_${e.date}`;
-        let file, warnings, name;
-        if (XlsFill.isXls(tpl)) { // 옛 엑셀(.xls) 양식 → .xls 로
-          ({ file, warnings } = XlsFill.fillXls(tpl, e, EstCore));
-          file = new Blob([file], { type: 'application/vnd.ms-excel' }); name = base + '.xls';
-        } else {
-          const stamp = state.settings.company.stamp ? new Uint8Array(await (await fetch(state.settings.company.stamp)).arrayBuffer()) : null;
-          ({ file, warnings } = await XlsxFill.fillXlsx(tpl, e, state.settings.company, EstCore, { JSZip, DOMParser, XMLSerializer, outType: 'blob', stamp }));
-          name = base + '.xlsx';
-        }
+        const { file: bytes, warnings } = XlsFill.fillXls(tpl, e, EstCore);
+        const file = new Blob([bytes], { type: 'application/vnd.ms-excel' }), name = base + '.xls';
         if (warnings.length) alert(warnings.join('\n'));
         downloadBlob(file, name); toast('휴대폰에 저장했습니다');
       } catch (err) { console.error(err); alert('엑셀 견적서 만들기 실패: ' + err.message); }
@@ -667,9 +660,9 @@ function renderMore(el) {
       <label class="btn">소견서 양식 올리기 (.hwp)<input type="file" accept=".hwp" hidden id="optplin"></label></details>
     <details id="tpl-sec"><summary>견적서 양식 (엑셀 · 한글)</summary>
       <p><b>엑셀 양식</b></p>
-      <p class="hint">사장님 엑셀 견적서(<b>.xls 또는 .xlsx</b>)를 <b>처음 한 번</b> 올리면 그 파일 그대로(상호·도장 포함) 칸만 채워서 만들어 줍니다. 양식은 <b>이 폰과 로그인한 클라우드에만</b> 저장되고 인터넷에 공개되지 않습니다. 같은 계정으로 로그인한 다른 폰에도 자동으로 들어갑니다.</p>
+      <p class="hint">사장님 엑셀 견적서(<b>.xls</b>)를 <b>처음 한 번</b> 올리면 그 파일 그대로(상호·도장 포함) 칸만 채워서 만들어 줍니다. 양식은 <b>이 폰과 로그인한 클라우드에만</b> 저장되고 인터넷에 공개되지 않습니다. 같은 계정으로 로그인한 다른 폰에도 자동으로 들어갑니다.</p>
       <p id="xtplstate" class="hint"></p>
-      <label class="btn">엑셀 양식 올리기 (.xls / .xlsx)<input type="file" accept=".xls,.xlsx" hidden id="xtplin"></label>
+      <label class="btn">엑셀 양식 올리기 (.xls)<input type="file" accept=".xls" hidden id="xtplin"></label>
       <p style="margin-top:14px"><b>한글 양식</b></p>
       <p class="hint">지금은 <b>예시 양식</b>을 씁니다. 실제 양식으로 바꾸려면: 한글에서 양식을 열고 값이 들어갈 자리에 <code>{{customer}}</code> 처럼 적은 뒤 <b>[다른 이름으로 저장 → HWPX]</b>로 저장해 아래에 올리세요. 품목 표는 한 줄에 <code>{{name}}</code> 등을 적어두면 품목 수만큼 늘어납니다.</p>
       <p class="hint">쓸 수 있는 자리표시자: <code>{{date}} {{customer}} {{phone}} {{address}} {{title}} {{memo}} {{company}} {{owner}} {{bizno}} {{company_phone}} {{company_address}} {{account}} {{supply}} {{vat}} {{total}} {{total_korean}}</code> / 품목 행: <code>{{no}} {{name}} {{spec}} {{qty}} {{unit}} {{price}} {{amount}} {{note}}</code> (한글 이름 {{고객}} {{품명}} 등도 됨)</p>
@@ -716,20 +709,23 @@ function renderMore(el) {
     } catch (err) { alert('양식 등록 실패: ' + err.message); }
   };
   DB.getKV('xlsxTemplateName', '').then((n) => {
-    $('#xtplstate').innerHTML = n ? `✅ 사용 중인 엑셀 양식: ${esc(n)} ${Cloud.ready ? '(클라우드에 보관됨)' : '(이 폰에만 있음 — 클라우드에 로그인하면 자동 보관)'}` : '<span class="red">⚠️ 사장님 엑셀 양식이 아직 없습니다 → 아래 [엑셀 양식 올리기]</span>';
-    if (!n) $('#tpl-sec').open = true;
+    const ok = /\.xls$/i.test(n || '');
+    $('#xtplstate').innerHTML = ok ? `✅ 사용 중인 엑셀 양식: ${esc(n)} ${Cloud.ready ? '(클라우드에 보관됨)' : '(이 폰에만 있음 — 클라우드에 로그인하면 자동 보관)'}`
+      : '<span class="red">⚠️ 엑셀 견적서 양식(.xls)이 아직 없습니다 → 아래 [엑셀 양식 올리기]</span>';
+    if (!ok) $('#tpl-sec').open = true;
   });
+
   $('#xtplin').onchange = async (ev) => {
     const f = ev.target.files[0]; if (!f) return;
     const buf = await f.arrayBuffer();
     try {
-      if (XlsFill.isXls(buf)) { const chk = XlsFill.checkXlsTemplate(buf); if (!chk.ok) throw new Error(chk.why); }
-      else if (!(await XlsxFill.checkTemplate(buf, { JSZip }))) throw new Error('엑셀(.xls / .xlsx) 파일이 아닙니다');
+      if (!XlsFill.isXls(buf)) throw new Error('.xls 파일만 올릴 수 있습니다');
+      const chk = XlsFill.checkXlsTemplate(buf); if (!chk.ok) throw new Error(chk.why);
       await DB.setKV('xlsxTemplate', buf); await DB.setKV('xlsxTemplateName', f.name);
       if (Cloud.ready) await Cloud.pushTemplate(buf, f.name, 'xlsx');
       s.xlsxTemplateName = f.name; await saveSettings();
       alert('엑셀 양식을 등록했습니다. 견적서에서 [엑셀 받기]로 확인해 보세요.'); render();
-    } catch (err) { alert('엑셀 양식 등록 실패: ' + (/zip|end of central/i.test(err.message) ? '엑셀(.xls / .xlsx) 파일이 아닙니다' : err.message)); }
+    } catch (err) { alert('엑셀 양식 등록 실패: ' + err.message); }
   };
   DB.getKV('opinionTemplateName', '').then((n) => {
     $('#optplstate').innerHTML = n ? `✅ 사용 중인 소견서 양식: ${esc(n)} ${Cloud.ready ? '(클라우드에 보관됨)' : '(이 폰에만 있음 — 클라우드에 로그인하면 자동 보관)'}` : '<span class="red">⚠️ 소견서 양식이 아직 없습니다 → 아래 [소견서 양식 올리기]</span>';
