@@ -415,6 +415,7 @@ function editOpinion(id) {
       if (!tpl) { if (confirm('소견서 양식(.hwp)을 먼저 올려야 합니다. 설정으로 갈까요?')) { closeSheet(); location.hash = 'more'; } return; }
       try {
         const bytes = await Hwp5.fillOpinion(tpl, { date: o.date, location: o.location, repair: o.repair });
+        if (bytes.warnings && bytes.warnings.length) alert(bytes.warnings.join('\n'));
         const name = fname();
         const blob = new Blob([bytes], { type: 'application/x-hwp' });
         downloadBlob(blob, name); toast('휴대폰에 저장했습니다');
