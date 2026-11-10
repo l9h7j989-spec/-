@@ -714,7 +714,7 @@ function renderMore(el) {
       <a class="btn" href="templates/estimate_template.hwpx" download="견적서_예시양식.hwpx">예시 양식 받기</a>
       <button class="btn" id="tplreset">예시 양식으로 되돌리기</button></details>
     <details id="imp-sec"><summary>📥 지난 작업 메모 가져오기</summary><div class="form">
-      <p class="hint">날짜별로 적어 둔 메모 파일(.html / .txt)을 올리거나 글을 붙여넣으면, 날짜마다 달력 기록으로 넣어 줍니다. 날짜 줄 모양: <code>3/24</code>, <code>2023년 12월 18일</code></p>
+      <p class="hint">날짜별로 적어 둔 메모 파일(.html / .txt)을 올리거나 글을 붙여넣으면, 날짜마다 달력 기록으로 넣어 줍니다. 날짜 줄 모양: <code>3/24</code>, <code>2023년 12월 18일</code>, <code>2025 11월 17일</code> · 한 번에 1년치 파일도 됩니다</p>
       <label class="btn sm">📄 메모 파일 고르기<input type="file" accept=".html,.htm,.txt,text/plain,text/html" hidden id="impfile"></label>
       <label>또는 붙여넣기<textarea id="imptext" rows="4" placeholder="3/24&#10;드리움 스크린죠 13&#10;누수 40 300평집"></textarea></label>
       <div class="g2"><label>첫 연도 <small>(메모에 연도가 없을 때)</small><input id="impyear" type="number" inputmode="numeric"></label>
@@ -946,22 +946,32 @@ function setupImport() {
     const cur = $('#impmonth').value;
     $('#impmonth').innerHTML = `<option value="">전체 (${parsed.length}일)</option>` + Object.entries(months).map(([k, n]) => `<option value="${k}" ${k === cur ? 'selected' : ''}>${k.slice(0, 4)}년 ${Number(k.slice(5))}월 (${n}일)</option>`).join('');
     const pick = parsed.filter((e) => !$('#impmonth').value || e.date.startsWith($('#impmonth').value));
-    $('#impinfo').innerHTML = pick.length ? `넣을 날짜 <b>${pick.length}일</b>: ${pick[0].date} ~ ${pick[pick.length - 1].date}<br>예) ${esc(pick[0].date)} — ${esc(pick[0].lines.slice(0, 2).join(' / '))}` : '날짜 줄을 찾지 못했습니다 (예: 3/24)';
+    const big = MemoImport.suspicious(pick);
+    $('#impinfo').innerHTML = pick.length ? `넣을 날짜 <b>${pick.length}일</b>: ${pick[0].date} ~ ${pick[pick.length - 1].date} · 하루 최대 ${Math.max(...pick.map((e) => e.lines.length))}줄<br>예) ${esc(pick[0].date)} — ${esc(pick[0].lines.slice(0, 2).join(' / '))}`
+      + (big.length ? `<br><span class="red">⚠️ 줄이 너무 많은 날: ${big.map((e) => `${e.date}(${e.lines.length}줄)`).join(', ')} — 날짜 줄 모양이 달라 여러 날이 한 날에 몰렸을 수 있습니다. 관리자에게 메모를 보내 확인하세요.</span>` : '')
+      : '날짜 줄을 찾지 못했습니다 (예: 3/24, 2025년 1월 3일)';
     $('#impgo').disabled = !pick.length;
   };
   $('#impfile').onchange = async (ev) => { const f = ev.target.files[0]; if (!f) return; $('#imptext').value = await f.text(); $('#impyear').value = ''; refresh(); };
   $('#imptext').oninput = refresh; $('#impyear').oninput = refresh; $('#impmonth').onchange = refresh;
   $('#impgo').onclick = async () => {
     const pick = parsed.filter((e) => !$('#impmonth').value || e.date.startsWith($('#impmonth').value));
-    if (!pick.length || !confirm(`${pick.length}일치 기록을 달력에 넣을까요?\n(이미 같은 내용이 있는 날은 건너뜁니다)`)) return;
-    let added = 0, skipped = 0;
+    if (!pick.length || !confirm(`${pick.length}일치 기록을 달력에 넣을까요?\n(전에 메모로 가져온 날은 새 내용으로 바꾸고, 직접 쓴 기록은 그대로 둡니다)`)) return;
+    let added = 0, skipped = 0, updated = 0;
     for (const e of pick) {
       const desc = e.lines.join('\n');
       if (state.jobs.some((j) => j.date === e.date && (j.desc || '').trim() === desc.trim())) { skipped++; continue; }
+      // 전에 메모로 가져온 같은 날 기록 → 새 내용으로 교체 (같은 날 두 번 들어가지 않게)
+      const old = state.jobs.filter((j) => j.date === e.date && j.src === 'memo');
+      if (old.length) {
+        old[0].desc = desc; await DB.put('jobs', old[0]);
+        for (const x of old.slice(1)) { await DB.del('jobs', x.id); state.jobs = state.jobs.filter((j) => j !== x); }
+        updated++; continue;
+      }
       const j = { id: uid(), date: e.date, desc, customer: '', phone: '', address: '', type: '', time: '', amount: 0, paid: 0, photos: [], checklist: [], memo: '', status: 'done', src: 'memo' };
       await DB.put('jobs', j); state.jobs.push(j); added++;
     }
-    alert(`${added}일 넣었습니다${skipped ? ` (같은 내용 ${skipped}일은 건너뜀)` : ''}.`);
+    alert(`${added}일 넣었습니다${updated ? `, ${updated}일은 새 내용으로 바꿈` : ''}${skipped ? ` (같은 내용 ${skipped}일은 건너뜀)` : ''}.`);
     state.calSel = pick[0].date; state.calMonth = new Date(pick[0].date + 'T00:00'); location.hash = 'cal';
   };
 }
