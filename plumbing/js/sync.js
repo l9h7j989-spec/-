@@ -175,6 +175,11 @@ const Cloud = (() => {
     for (const p of await DB.all('photos')) q[p.id] = { id: p.id, del: false };
     await DB.put('kv', { k: 'photoQueue', v: q });
     await DB.put('kv', { k: 'pullCursor', v: null });
+    // 로그인 전에 이 폰에만 올려 둔 양식도 클라우드로
+    for (const [kind, t] of Object.entries(TPL)) {
+      const buf = await DB.getKV(t.kv, null), name = await DB.getKV(t.nameKv, '');
+      if (buf && name) await pushTemplate(buf, name, kind);
+    }
     await DB.put('kv', { k: 'syncUser', v: user.id });
   }
 
