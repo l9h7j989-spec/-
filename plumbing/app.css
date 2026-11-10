@@ -263,3 +263,7 @@ label.inline { display: flex; align-items: center; gap: 8px; margin: 8px 0 12px;
 
 .eyebrow { margin: 18px 4px -10px; color: var(--sub); font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .02em; }
 h2.large { font-size: 34px; }
+
+.impclear { margin-top: 18px; padding-top: 14px; border-top: .5px solid var(--line); }
+.impclear .row { display: flex; gap: 8px; align-items: center; }
+.impclear select { flex: 1; margin: 0; }

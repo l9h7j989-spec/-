@@ -720,7 +720,10 @@ function renderMore(el) {
       <div class="g2"><label>첫 연도 <small>(메모에 연도가 없을 때)</small><input id="impyear" type="number" inputmode="numeric"></label>
       <label>넣을 달<select id="impmonth"><option value="">전체</option></select></label></div>
       <p class="hint" id="impinfo"></p>
-      <button class="btn primary" id="impgo" disabled>가져오기</button></div></details>
+      <button class="btn primary" id="impgo" disabled>가져오기</button>
+      <div class="impclear"><b>잘못 들어간 기록 지우기</b>
+        <p class="hint">메모 가져오기로 넣은 기록만 지웁니다. 앱에서 직접 쓴 기록은 그대로 남습니다.</p>
+        <div class="row"><select id="impdelyear"></select><button class="btn danger" id="impdel">지우기</button></div></div></div></details>
     <details><summary>고객 목록</summary><div id="custs"></div></details>
     <details><summary>백업 · 복원 (중요)</summary>
       <p class="hint">클라우드 저장을 켜면 자동으로 안전하게 보관됩니다. 이 백업 파일은 추가 보험용입니다(클라우드를 안 쓸 때는 꼭 주기적으로 받아두세요).</p>
@@ -952,6 +955,22 @@ function setupImport() {
       : '날짜 줄을 찾지 못했습니다 (예: 3/24, 2025년 1월 3일)';
     $('#impgo').disabled = !pick.length;
   };
+  const fillDel = () => {
+    const memo = state.jobs.filter((j) => j.src === 'memo'), ys = {};
+    memo.forEach((j) => { const y = (j.date || '').slice(0, 4); ys[y] = (ys[y] || 0) + 1; });
+    $('#impdelyear').innerHTML = `<option value="">전체 (${memo.length}건)</option>` + Object.keys(ys).sort().map((y) => `<option value="${y}">${y}년 (${ys[y]}건)</option>`).join('');
+    $('#impdel').disabled = !memo.length;
+  };
+  fillDel();
+  $('#impdel').onclick = async () => {
+    const y = $('#impdelyear').value;
+    const del = state.jobs.filter((j) => j.src === 'memo' && (!y || (j.date || '').startsWith(y)));
+    if (!del.length) return;
+    if (!confirm(`메모로 가져온 기록 ${del.length}건(${y ? y + '년' : '전체'})을 지울까요?\n직접 쓴 기록은 지워지지 않습니다.\n지운 뒤에는 되돌릴 수 없으니, 메모 파일을 다시 가져오면 됩니다.`)) return;
+    for (const j of del) await DB.del('jobs', j.id);
+    const ids = new Set(del.map((j) => j.id)); state.jobs = state.jobs.filter((j) => !ids.has(j.id));
+    fillDel(); alert(`${del.length}건 지웠습니다. 이제 메모 파일을 다시 가져오세요.`);
+  };
   $('#impfile').onchange = async (ev) => { const f = ev.target.files[0]; if (!f) return; $('#imptext').value = await f.text(); $('#impyear').value = ''; refresh(); };
   $('#imptext').oninput = refresh; $('#impyear').oninput = refresh; $('#impmonth').onchange = refresh;
   $('#impgo').onclick = async () => {
@@ -971,6 +990,7 @@ function setupImport() {
       const j = { id: uid(), date: e.date, desc, customer: '', phone: '', address: '', type: '', time: '', amount: 0, paid: 0, photos: [], checklist: [], memo: '', status: 'done', src: 'memo' };
       await DB.put('jobs', j); state.jobs.push(j); added++;
     }
+    fillDel();
     alert(`${added}일 넣었습니다${updated ? `, ${updated}일은 새 내용으로 바꿈` : ''}${skipped ? ` (같은 내용 ${skipped}일은 건너뜀)` : ''}.`);
     state.calSel = pick[0].date; state.calMonth = new Date(pick[0].date + 'T00:00'); location.hash = 'cal';
   };
