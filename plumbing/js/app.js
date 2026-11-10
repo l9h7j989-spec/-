@@ -417,10 +417,7 @@ function editOpinion(id) {
         const bytes = await Hwp5.fillOpinion(tpl, { date: o.date, location: o.location, repair: o.repair });
         const name = fname();
         const blob = new Blob([bytes], { type: 'application/x-hwp' });
-        const file = new File([blob], name, { type: 'application/x-hwp' });
-        if (navigator.canShare && navigator.canShare({ files: [file] }) && confirm('카톡 등으로 바로 보낼까요?\n(취소 = 휴대폰에 저장)')) {
-          await navigator.share({ files: [file], title: name }).catch(() => {});
-        } else downloadBlob(blob, name);
+        downloadBlob(blob, name); toast('휴대폰에 저장했습니다');
       } catch (err) { console.error(err); alert('소견서 만들기 실패: ' + err.message); }
     };
     const d = $('#o-del', root);
@@ -550,12 +547,7 @@ function editEstimate(id, fromJob) {
         const stamp = state.settings.company.stamp ? await (await fetch(state.settings.company.stamp)).arrayBuffer() : null;
         const blob = await Hwpx.fillHwpx(tpl, b.data, b.items, { JSZip, DOMParser, XMLSerializer, outType: 'blob', stamp });
         const name = `견적서_${(e.address || e.customer || '고객').replace(/[\\/:*?"<>|]/g, '')}_${e.date}.hwpx`;
-        const file = new File([blob], name, { type: 'application/hwp+zip' });
-        if (navigator.canShare && navigator.canShare({ files: [file] }) && confirm('카톡 등으로 바로 보낼까요?\n(취소 = 휴대폰에 저장)')) {
-          await navigator.share({ files: [file], title: name }).catch(() => {});
-        } else {
-          downloadBlob(blob, name);
-        }
+        downloadBlob(blob, name); toast('휴대폰에 저장했습니다');
       } catch (err) { console.error(err); alert('견적서 생성 실패: ' + err.message); }
     };
     $('#e-xlsx', root).onclick = async () => {
@@ -564,13 +556,11 @@ function editEstimate(id, fromJob) {
       if (!(await okToMake('xlsx'))) return;
       try {
         const tpl = (await DB.getKV('xlsxTemplate', null)) || await (await fetch('templates/estimate_template.xlsx')).arrayBuffer();
-        const { file, warnings } = await XlsxFill.fillXlsx(tpl, e, state.settings.company, EstCore, { JSZip, DOMParser, XMLSerializer, outType: 'blob' });
+        const stamp = state.settings.company.stamp ? new Uint8Array(await (await fetch(state.settings.company.stamp)).arrayBuffer()) : null;
+        const { file, warnings } = await XlsxFill.fillXlsx(tpl, e, state.settings.company, EstCore, { JSZip, DOMParser, XMLSerializer, outType: 'blob', stamp });
         if (warnings.length) alert(warnings.join('\n'));
         const name = `견적서_${(e.address || e.customer || '고객').replace(/[\\/:*?"<>|]/g, '')}_${e.date}.xlsx`;
-        const f = new File([file], name, { type: file.type });
-        if (navigator.canShare && navigator.canShare({ files: [f] }) && confirm('카톡 등으로 바로 보낼까요?\n(취소 = 휴대폰에 저장)')) {
-          await navigator.share({ files: [f], title: name }).catch(() => {});
-        } else downloadBlob(file, name);
+        downloadBlob(file, name); toast('휴대폰에 저장했습니다');
       } catch (err) { console.error(err); alert('엑셀 견적서 만들기 실패: ' + err.message); }
     };
     $('#e-print', root).onclick = async () => { await save(true); printEstimate(e); };
@@ -650,7 +640,6 @@ function renderMore(el) {
   const s = state.settings, c = s.company;
   el.innerHTML = `<h2>설정</h2>
     <details id="cloud-sec" ${Cloud.status.state === 'on' || Cloud.status.state === 'error' ? '' : 'open'}><summary>☁️ 클라우드 저장 (폰 바꿔도 안전)</summary><div id="cloudbox" class="form"></div></details>
-    <details id="kakao-sec"><summary>💬 미수금 카톡 알림</summary><div id="kakaobox" class="form"></div></details>
     <details><summary>📱 앱으로 설치</summary><div id="installbox"></div></details>
     <details ${c.name ? '' : 'open'}><summary>업체정보 (견적서에 들어감)</summary><form id="cf" class="form">
       <div class="g2"><label>상호<input name="name" value="${esc(c.name)}"></label><label>대표자<input name="owner" value="${esc(c.owner)}"></label></div>
@@ -682,11 +671,6 @@ function renderMore(el) {
       <label class="btn">양식 올리기 (.hwpx)<input type="file" accept=".hwpx" hidden id="tplin"></label>
       <a class="btn" href="templates/estimate_template.hwpx" download="견적서_예시양식.hwpx">예시 양식 받기</a>
       <button class="btn" id="tplreset">예시 양식으로 되돌리기</button></details>
-    <details><summary>밴드 · 문자 문구</summary><div class="form">
-      <label>밴드 글 틀 <small>{유형} {지역} {내용} {날짜} — 주소는 시·구·동까지만 들어갑니다</small><textarea id="bt" rows="4">${esc(s.bandTemplate)}</textarea></label>
-      <label>입금요청 문자 틀 <small>{상호} {날짜} {내용} {금액} {계좌} {고객}</small><textarea id="st" rows="3">${esc(s.smsTemplate)}</textarea></label>
-      <label>A/S 보증 기본 개월 수<input id="asm" type="number" value="${s.asMonths}"></label>
-      <button class="btn primary" id="tsave">저장</button></div></details>
     <details><summary>고객 목록</summary><div id="custs"></div></details>
     <details><summary>백업 · 복원 (중요)</summary>
       <p class="hint">클라우드 저장을 켜면 자동으로 안전하게 보관됩니다. 이 백업 파일은 추가 보험용입니다(클라우드를 안 쓸 때는 꼭 주기적으로 받아두세요).</p>
@@ -758,11 +742,10 @@ function renderMore(el) {
   };
   $('#xtplreset').onclick = async () => { await DB.del('kv', 'xlsxTemplate'); await DB.del('kv', 'xlsxTemplateName'); s.xlsxTemplateName = ''; await saveSettings(); toast('기본 엑셀 양식으로 되돌렸습니다'); render(); };
   $('#tplreset').onclick = async () => { await DB.del('kv', 'template'); await DB.del('kv', 'templateName'); s.templateName = ''; await saveSettings(); toast('예시 양식으로 되돌렸습니다'); render(); };
-  $('#tsave').onclick = async () => { s.bandTemplate = $('#bt').value; s.smsTemplate = $('#st').value; s.asMonths = Number($('#asm').value) || 12; await saveSettings(); toast('저장'); };
   const cm = new Map();
   state.jobs.forEach((j) => { if (!j.customer) return; const k = j.customer + '|' + (j.phone || ''); const v = cm.get(k) || { name: j.customer, phone: j.phone, n: 0, s: 0, u: 0, last: '' }; v.n++; v.s += Number(j.amount) || 0; v.u += unpaidOf(j); if (j.date > v.last) v.last = j.date; cm.set(k, v); });
   $('#custs').innerHTML = `<table class="tbl"><tr><th>고객</th><th>횟수</th><th>총액</th><th>미수</th><th>최근</th></tr>${[...cm.values()].sort((a, b) => b.last.localeCompare(a.last)).map((v) => `<tr><td>${esc(v.name)}<br><small>${v.phone ? `<a href="tel:${esc(v.phone)}">${esc(v.phone)}</a>` : ''}</small></td><td>${v.n}</td><td class="r">${won(v.s)}</td><td class="r ${v.u ? 'red' : ''}">${won(v.u)}</td><td>${fmtDate(v.last)}</td></tr>`).join('') || '<tr><td colspan="5">작업 기록이 쌓이면 자동으로 만들어집니다</td></tr>'}</table>`;
-  drawCloud(); drawKakao(); drawInstall();
+  drawCloud(); drawInstall();
   $('#bk').onclick = backup;
   $('#rs').onchange = restore;
 }
