@@ -8,7 +8,7 @@
  * 브라우저(window.CFB, window.pako)와 Node(require) 양쪽에서 동작.
  */
 (function (root) {
-  const T = { CHAR_SHAPE: 21, PARA_HEADER: 66, PARA_TEXT: 67, PARA_CHAR_SHAPE: 68, PARA_LINE_SEG: 69 };
+  const T = { CHAR_SHAPE: 21, PARA_HEADER: 66, PARA_TEXT: 67, PARA_CHAR_SHAPE: 68, PARA_LINE_SEG: 69, LIST_HEADER: 72, TABLE: 77 };
   // 8글자(16바이트) 크기 제어문자 (확장/인라인 컨트롤)
   const WIDE_CTRL = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]);
 
@@ -117,12 +117,16 @@
       const sh = p.shape || { size: 1000, ratio: 100, spacing: 0 };
       const full = sh.size * (sh.ratio / 100) * (1 + sh.spacing / 100);
       const starts = [0]; let w = 0; let pos = ctrls.length * 8;
+      const cwOf = (code) => (code >= 0x1100 ? full : code === 32 ? full * 0.5 : full * 0.55);
       for (const c of flat) {
-        const code = c.ch.charCodeAt(0);
-        const cw = code >= 0x1100 ? full : code === 32 ? full * 0.5 : full * 0.55;
+        const cw = cwOf(c.ch.charCodeAt(0));
         if (w + cw > width && w > 0) { starts.push(pos); w = 0; }
         w += cw; pos += 1;
       }
+      // 한글 프로그램과 줄 바꿈이 조금 달라도 넘치지 않게, 글자를 10% 넓게 잡아 한 번 더 셈
+      let safe = 1; w = 0;
+      for (const c of flat) { const cw = cwOf(c.ch.charCodeAt(0)) * 1.1; if (w + cw > width && w > 0) { safe++; w = 0; } w += cw; }
+      p.result = { oldLines: n, newLines: starts.length, safeLines: Math.max(safe, starts.length), step };
       const nb = new Uint8Array(starts.length * 36); const nv = dv(nb);
       starts.forEach((st, k) => {
         nb.set(k === 0 ? s0 : (s1 || s0), k * 36);
@@ -132,6 +136,46 @@
       recs[p.li].body = nb; hv.setUint16(16, starts.length, true);
     }
     recs[p.hi].body = head;
+  }
+
+  // 원본 양식은 1쪽이 꽉 차 있어(여유 0) 글이 늘면 맨 아래 명판직인 그림이 2쪽으로 넘어간다.
+  // '수리 내역' 이 늘어난 만큼 아래 '파손 발생 이유' 칸(빈 공간이 많음)의 높이를 줄여 전체 높이를 그대로 둔다.
+  function keepPageHeight(recs, paras, at) {
+    const warnings = [];
+    const lineH = (pi) => { // 문단 한 줄 높이와 줄 수 (줄 정보 기준)
+      const p = paras[pi]; if (p.li == null) return { lines: 1, step: 1600 };
+      const lb = recs[p.li].body, v = dv(lb), n = Math.floor(lb.length / 36);
+      const step = n > 1 ? v.getInt32(40, true) - v.getInt32(4, true) : v.getInt32(8, true) + v.getInt32(20, true);
+      return { lines: n, step };
+    };
+    const causeCell = (() => { for (let i = at.cause.hi; i >= 0; i--) if (recs[i].tag === T.LIST_HEADER && recs[i].level === at.cause.level) return i; return -1; })();
+    if (causeCell < 0) return warnings;
+    let tableIdx = causeCell; while (tableIdx >= 0 && recs[tableIdx].tag !== T.TABLE) tableIdx--;
+    if (tableIdx < 0) return warnings;
+    const cells = []; let tableEnd = tableIdx + 1;
+    for (; tableEnd < recs.length && recs[tableEnd].level >= recs[causeCell].level; tableEnd++) if (recs[tableEnd].tag === T.LIST_HEADER && recs[tableEnd].level === recs[causeCell].level) cells.push(tableEnd);
+    const cellView = (i) => dv(recs[i].body);
+    const rowOf = (i) => cellView(i).getUint16(10, true);
+    const row2 = rowOf(causeCell);
+    // 이 칸 안의 문단들이 차지하는 높이(넉넉하게)
+    const nextCell = cells.find((i) => i > causeCell) ?? tableEnd;
+    let need = 0;
+    paras.forEach((p, pi) => {
+      if (p.hi <= causeCell || p.hi >= nextCell || p.level !== recs[causeCell].level) return;
+      const { lines, step } = lineH(pi);
+      need += (p.result ? p.result.safeLines : lines) * step;
+    });
+    const cv = cellView(causeCell);
+    need += cv.getUint16(28, true) + cv.getUint16(30, true) + 300;
+    const r = at.repair.result || { safeLines: 0, oldLines: 0, step: 0 };
+    const extra = Math.max(0, r.safeLines - r.oldLines) * r.step;
+    const origH = cv.getUint32(20, true);
+    const BUFFER = 500; // 반올림 차이 대비 여유 (약 1.8mm)
+    let newH = origH - extra - BUFFER;
+    if (newH < need) { newH = Math.max(need, newH); warnings.push('수리 내역이 길어서 소견서가 2쪽으로 넘어갈 수 있습니다. 조금 줄여 주세요.'); }
+    if (newH >= origH) return warnings;
+    for (const i of cells) if (rowOf(i) === row2) { const b = new Uint8Array(recs[i].body); dv(b).setUint32(20, newH, true); recs[i].body = b; }
+    return warnings;
   }
 
   function lib(env) {
@@ -189,6 +233,7 @@
     setParagraph(recs, at.location, locPrefix + loc, shapes);
     setParagraph(recs, at.cause, causePrefix + (data.cause != null ? String(data.cause).trim() : repair), shapes);
     setParagraph(recs, at.date, dateText, shapes, { keepCtrl: true });
+    const warnings = keepPageHeight(recs, paras, at);
 
     const body = writeRecords(recs);
     setStream(CFB, cfb, 'BodyText/Section0', compressed ? pako.deflateRaw(body, { level: 9 }) : body);
@@ -207,7 +252,9 @@
       setStream(CFB, cfb, 'PrvText', nb);
     }
     const out = CFB.write(cfb, { type: 'array', fileType: 'cfb' });
-    return u8(out);
+    const result = u8(out);
+    result.warnings = warnings;
+    return result;
   }
 
   /** 올린 파일이 소견서 양식인지 확인 (바꿀 4곳이 있는지) */
