@@ -132,7 +132,8 @@ function renderHome(el) {
   const overdue = state.todos.filter((t) => !t.done && t.date < today).sort((a, b) => a.date.localeCompare(b.date));
   const asSoon = state.jobs.filter((j) => j.asUntil && j.asUntil >= today && j.asUntil <= ymd(new Date(Date.now() + 30 * 864e5)));
   el.innerHTML = `
-    <h2>${fmtDate(today)} 오늘</h2>
+    <p class="eyebrow">${(() => { const d = new Date(today + 'T00:00'); return `${d.getMonth() + 1}월 ${d.getDate()}일 ${WEEK[d.getDay()]}요일`; })()}</p>
+    <h2 class="large">오늘</h2>
     ${state.jobs.some((x) => Number(x.amount) > 0) ? `<div class="stats">
       <div class="stat"><small>이번 달 매출</small><b>${won(sales)}</b></div>
       <div class="stat warn" onclick="location.hash='money'"><small>받을 돈 (${unpaidCnt}건)</small><b>${won(unpaid)}</b></div>
@@ -808,7 +809,7 @@ const fmtTime = (iso) => { if (!iso) return '없음'; const d = new Date(iso); r
 function drawCloudBadge() {
   const b = $('#cloudbtn'); if (!b) return;
   const st = Cloud.status.state;
-  b.textContent = { off: '☁️ 꺼짐', login: '☁️ 로그인', syncing: '☁️ 동기화 중', on: '☁️ 저장됨', error: '⚠️ 동기화 오류' }[st] || '';
+  b.textContent = { off: '', login: '로그인 필요', syncing: '동기화 중…', on: '● 저장됨', error: '동기화 오류' }[st] || '';
   b.className = 'cloud ' + st;
 }
 function drawCloud() {
