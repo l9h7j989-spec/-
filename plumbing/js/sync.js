@@ -145,11 +145,11 @@ const Cloud = (() => {
     await DB.put('photos', { id, blob: data }, { fromSync: true });
     return data;
   }
-  // 견적서 양식 파일: 한글(hwpx) / 엑셀(xlsx)
+  // 양식 파일: 한글 견적서(hwpx) / 엑셀 견적서(xls, 이름은 예전 그대로 xlsx 칸 사용) / 소견서(hwp)
   const TPL = {
     hwpx: { kv: 'template', nameKv: 'templateName', setting: 'templateName', type: 'application/hwp+zip' },
     hwp: { kv: 'opinionTemplate', nameKv: 'opinionTemplateName', setting: 'opinionTemplateName', type: 'application/x-hwp' },
-    xlsx: { kv: 'xlsxTemplate', nameKv: 'xlsxTemplateName', setting: 'xlsxTemplateName', type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
+    xlsx: { kv: 'xlsxTemplate', nameKv: 'xlsxTemplateName', setting: 'xlsxTemplateName', type: 'application/vnd.ms-excel' },
   };
   async function pushTemplate(buf, name, kind = 'hwpx') {
     if (!client || !user) return;
