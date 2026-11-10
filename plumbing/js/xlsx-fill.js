@@ -12,9 +12,53 @@
     itemFirstRow: 12, itemLastRow: 27,
     itemCols: { name: 'B', unit: 'C', qty: 'D', price: 'E', amount: 'F', note: 'G' },
     totalCell: 'F28', memo: 'B29',
-    // 양식에 비어 있을 때만 앱의 업체정보로 채움
+    // 양식에 비어 있을 때만 앱의 업체정보로 채움 (사장님 양식에는 이미 적혀 있음)
     company: { name: 'E3', owner: 'E4', address: 'E6', tel: 'E7', phone: 'E8' },
+    // 도장 자리 (사장님 엑셀과 같은 곳: G열, 3~4행). 0부터 세는 열/행 번호, EMU 단위 여백
+    stamp: { col: 6, colOff: 259920, row: 2, rowOff: 47520, cx: 720000, cy: 720000 },
   };
+
+  // 양식에 그림(도장)이 없을 때 설정의 도장 그림을 넣는다
+  async function addStamp(zip, sheetPath, doc, png) {
+    if (doc.getElementsByTagNameNS(NS, 'drawing').length) return false; // 이미 그림이 있는 양식(사장님 양식)은 그대로
+    const R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+    const sheetFile = sheetPath.split('/').pop();
+    const relsPath = sheetPath.replace(sheetFile, '_rels/' + sheetFile + '.rels');
+    let n = 1; while (zip.file(`xl/drawings/drawing${n}.xml`)) n++;
+    let m = 1; while (zip.file(`xl/media/stamp${m}.png`)) m++;
+    const drawingPath = `xl/drawings/drawing${n}.xml`, mediaName = `stamp${m}.png`;
+    zip.file('xl/media/' + mediaName, png);
+    const a = MAP.stamp;
+    zip.file(drawingPath, '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
+      '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="' + R + '">' +
+      `<xdr:oneCellAnchor><xdr:from><xdr:col>${a.col}</xdr:col><xdr:colOff>${a.colOff}</xdr:colOff><xdr:row>${a.row}</xdr:row><xdr:rowOff>${a.rowOff}</xdr:rowOff></xdr:from>` +
+      `<xdr:ext cx="${a.cx}" cy="${a.cy}"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="2" name="도장"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr>` +
+      '<xdr:blipFill><a:blip r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>' +
+      `<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${a.cx}" cy="${a.cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor></xdr:wsDr>`);
+    zip.file(`xl/drawings/_rels/drawing${n}.xml.rels`, '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      `<Relationship Id="rId1" Type="${R}/image" Target="../media/${mediaName}"/></Relationships>`);
+    // 시트 → 그림 연결
+    let rels = zip.file(relsPath) ? await zip.file(relsPath).async('string')
+      : '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>';
+    let rid = 1; while (rels.includes(`Id="rIdStamp${rid}"`)) rid++;
+    const relId = `rIdStamp${rid}`;
+    rels = rels.replace('</Relationships>', `<Relationship Id="${relId}" Type="${R}/drawing" Target="../drawings/drawing${n}.xml"/></Relationships>`);
+    zip.file(relsPath, rels);
+    const ws = doc.documentElement;
+    if (!ws.getAttribute('xmlns:r')) ws.setAttribute('xmlns:r', R);
+    const dr = doc.createElementNS(NS, 'drawing'); dr.setAttributeNS(R, 'r:id', relId);
+    // <drawing> 은 정해진 순서가 있음: 아래 요소들보다 앞에 둔다
+    const after = ['legacyDrawing', 'legacyDrawingHF', 'drawingHF', 'picture', 'oleObjects', 'controls', 'webPublishItems', 'tableParts', 'extLst'];
+    const next = Array.from(ws.childNodes).find((x) => x.nodeType === 1 && after.includes(x.localName));
+    ws.insertBefore(dr, next || null);
+    // 파일 종류 등록
+    let ct = await zip.file('[Content_Types].xml').async('string');
+    if (!/Extension="png"/i.test(ct)) ct = ct.replace('<Default ', '<Default Extension="png" ContentType="image/png"/><Default ');
+    ct = ct.replace('</Types>', `<Override PartName="/${drawingPath}" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/></Types>`);
+    zip.file('[Content_Types].xml', ct);
+    return true;
+  }
 
   const colNum = (ref) => ref.replace(/\d+/g, '').split('').reduce((a, ch) => a * 26 + ch.charCodeAt(0) - 64, 0);
   const rowNum = (ref) => Number(ref.replace(/\D+/g, ''));
@@ -131,6 +175,8 @@
     fillCo(co.address, company.address, company.address);
     fillCo(co.tel, `TEL : ${company.tel}`, company.tel);
     fillCo(co.phone, `H.P : ${company.phone}`, company.phone);
+
+    if (env.stamp) await addStamp(zip, sheetPath, doc, env.stamp);
 
     let out = ser.serializeToString(doc);
     if (!out.startsWith('<?xml')) out = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' + out;
