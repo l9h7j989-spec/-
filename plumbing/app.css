@@ -144,3 +144,15 @@ details.sub-details summary { font-weight: 600; font-size: 14px; color: var(--su
 .tabs { display: flex; gap: 6px; margin: 12px 0 0; }
 .tabs button { flex: 1; min-height: 44px; border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 10px; font: inherit; font-weight: 600; cursor: pointer; }
 .tabs button.on { background: var(--pri); color: #fff; border-color: var(--pri); }
+
+.caltitle { background: none; border: 0; font: inherit; font-size: 20px; font-weight: 700; color: var(--text); cursor: pointer; padding: 6px 10px; border-radius: 10px; }
+.caltitle:active { background: var(--pri-weak); }
+.jumpbox { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px; margin-bottom: 8px; }
+.jumpbox[hidden] { display: none; }
+.jumpbox select { width: auto; flex: 1 1 28%; min-width: 80px; margin: 0; }
+.stats.three { grid-template-columns: repeat(3, 1fr); }
+.pastlist { display: grid; gap: 6px; }
+.pastday { display: flex; align-items: center; gap: 10px; text-align: left; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font: inherit; color: var(--text); cursor: pointer; min-height: 48px; }
+.pastday b { white-space: nowrap; font-size: 14px; }
+.pastday span { flex: 1; color: var(--sub); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pastday small { color: var(--pri); font-size: 12px; }

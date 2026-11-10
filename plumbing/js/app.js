@@ -139,18 +139,44 @@ function renderHome(el) {
     </div>` : ''}
     ${!isStandalone() && (installEvt || isIOS()) && !localStorage.getItem('hideInstall') ? `<div class="banner">📲 홈 화면에 설치하면 앱처럼 씁니다 <button class="btn sm primary" id="q-inst">설치</button><button class="x" id="q-hide">×</button></div>` : ''}
     <div class="quick"><button class="btn primary" id="q-job">＋ 기록</button><button class="btn" id="q-est">＋ 견적서</button></div>
+    ${workSummary(today, 'stats')}
     <h3>오늘 기록 <small>${todayJobs.length}건</small></h3>
     ${todayJobs.map(jobCard).join('') || '<p class="empty">오늘 기록이 없습니다</p>'}
     <h3>오늘 할 일</h3>
     ${todoList(todayTodos)}
     ${addTodoForm(today)}
     ${overdue.length ? `<h3 class="red">밀린 할 일 <small>${overdue.length}</small></h3>${todoList(overdue, { showDate: true })}` : ''}
-    ${asSoon.length ? `<h3>A/S 기간 곧 끝남 (30일 이내)</h3>${asSoon.map(jobCard).join('')}` : ''}`;
+    ${asSoon.length ? `<h3>A/S 기간 곧 끝남 (30일 이내)</h3>${asSoon.map(jobCard).join('')}` : ''}
+    ${workSummary(today, 'past')}`;
   $('#q-job').onclick = () => editJob(null, today);
   $('#q-est').onclick = () => editEstimate(null);
   const qi = $('#q-inst'); if (qi) qi.onclick = async () => { if (installEvt) { installEvt.prompt(); await installEvt.userChoice; installEvt = null; render(); } else location.hash = 'more'; };
   const qh = $('#q-hide'); if (qh) qh.onclick = () => { try { localStorage.setItem('hideInstall', '1'); } catch (e) { /* 무시 */ } render(); };
+  $$('[data-goto]', el).forEach((b) => b.onclick = () => { state.calSel = b.dataset.goto; state.calMonth = new Date(b.dataset.goto + 'T00:00'); location.hash = 'cal'; });
   bindJobCards(el); bindTodos(el);
+}
+
+// 일한 날 = 기록이 있는 날짜
+function workSummary(today, part) {
+  const days = [...new Set(state.jobs.map((j) => j.date).filter(Boolean))].sort();
+  const t = new Date(today + 'T00:00');
+  const mon = new Date(t); mon.setDate(t.getDate() - ((t.getDay() + 6) % 7)); // 이번 주 월요일
+  const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+  const inRange = (a, b) => days.filter((d) => d >= a && d <= b).length;
+  const week = inRange(ymd(mon), ymd(sun)), month = days.filter((d) => d.startsWith(today.slice(0, 7))).length, year = days.filter((d) => d.startsWith(today.slice(0, 4))).length;
+  const past = days.filter((d) => d < today).reverse().slice(0, 10);
+  const lastYear = String(Number(today.slice(0, 4)) - 1), lastYearDays = days.filter((d) => d.startsWith(lastYear)).length;
+  const firstLine = (d) => { const j = state.jobs.find((x) => x.date === d); return j ? jobName(j) : ''; };
+  if (part === 'past') return past.length ? `<h3>지난 일한 날 <small>최근 ${past.length}일 · 누르면 달력으로</small></h3>
+      <div class="pastlist">${past.map((d) => { const n = state.jobs.filter((j) => j.date === d).length; return `<button class="pastday" data-goto="${d}"><b>${d.slice(0, 4)}. ${fmtDate(d)}</b><span>${esc(firstLine(d))}</span>${n > 1 ? `<small>${n}건</small>` : ''}</button>`; }).join('')}</div>` : '';
+  return `<h3>일한 날</h3>
+    <div class="stats three">
+      <div class="stat"><small>이번 주</small><b>${week}일</b></div>
+      <div class="stat"><small>${Number(today.slice(5, 7))}월</small><b>${month}일</b></div>
+      <div class="stat"><small>${today.slice(0, 4)}년</small><b>${year}일</b></div>
+    </div>
+    ${lastYearDays ? `<p class="hint">${lastYear}년: ${lastYearDays}일 · 전체 기록 ${days.length}일</p>` : (days.length ? `<p class="hint">전체 기록 ${days.length}일</p>` : '')}
+`;
 }
 
 /* ───────── 달력 ───────── */
@@ -179,7 +205,13 @@ function renderCal(el) {
   el.innerHTML = `
     <div class="searchbox"><input type="search" id="calq" placeholder="🔍 기록·할 일 검색 (예: 209동, 분배기)" value="${esc(state.calQuery || '')}" autocomplete="off"></div>
     <div id="calres"></div>
-    <div class="calhead"><button class="btn sm" id="pm">‹</button><h2>${y}년 ${mo + 1}월</h2><button class="btn sm" id="nm">›</button></div>
+    <div class="calhead"><button class="btn sm" id="pm">‹</button><button class="caltitle" id="calpick">${y}년 ${mo + 1}월 ▾</button><button class="btn sm" id="nm">›</button></div>
+    <div class="jumpbox" id="jumpbox" ${state.calJump ? '' : 'hidden'}>
+      <select id="jy">${(() => { const ys = new Set([new Date().getFullYear() + 1]); for (let k = new Date().getFullYear(); k >= 2015; k--) ys.add(k); state.jobs.forEach((j) => j.date && ys.add(Number(j.date.slice(0, 4)))); return [...ys].sort((a, b) => b - a).map((k) => `<option value="${k}" ${k === y ? 'selected' : ''}>${k}년</option>`).join(''); })()}</select>
+      <select id="jm">${[...Array(12).keys()].map((k) => `<option value="${k + 1}" ${k === mo ? 'selected' : ''}>${k + 1}월</option>`).join('')}</select>
+      <select id="jd"></select>
+      <button class="btn sm primary" id="jgo">이동</button><button class="btn sm" id="jtoday">오늘</button>
+    </div>
     <div class="legend"><span class="dot rec">n</span> 기록 수 <span class="tdot"></span> 할 일</div>
     <div class="cal">${WEEK.map((w) => `<div class="wk">${w}</div>`).join('')}${cells}</div>
     <h3>${fmtDate(sel)} <button class="btn sm primary" id="add-job">＋ 기록</button></h3>
@@ -188,6 +220,16 @@ function renderCal(el) {
   const q = $('#calq');
   q.oninput = () => { state.calQuery = q.value; drawSearch($('#calres')); };
   drawSearch($('#calres'));
+  const fillDays = () => {
+    const yy = Number($('#jy').value), mm = Number($('#jm').value), n = new Date(yy, mm, 0).getDate();
+    const keep = Number($('#jd').value) || (state.calSel && state.calSel.startsWith(`${yy}-${pad(mm)}`) ? Number(state.calSel.slice(8)) : 1);
+    $('#jd').innerHTML = [...Array(n).keys()].map((k) => `<option value="${k + 1}" ${k + 1 === Math.min(keep, n) ? 'selected' : ''}>${k + 1}일</option>`).join('');
+  };
+  fillDays(); $('#jy').onchange = fillDays; $('#jm').onchange = fillDays;
+  $('#calpick').onclick = () => { state.calJump = !state.calJump; $('#jumpbox').hidden = !state.calJump; };
+  const jumpTo = (ds) => { state.calSel = ds; state.calMonth = new Date(ds + 'T00:00'); state.calJump = false; render(); };
+  $('#jgo').onclick = () => jumpTo(`${$('#jy').value}-${pad($('#jm').value)}-${pad($('#jd').value)}`);
+  $('#jtoday').onclick = () => jumpTo(ymd());
   $('#pm').onclick = () => { state.calMonth = new Date(y, mo - 1, 1); render(); };
   $('#nm').onclick = () => { state.calMonth = new Date(y, mo + 1, 1); render(); };
   $$('.cell[data-d]', el).forEach((c) => c.onclick = () => { state.calSel = c.dataset.d; render(); });
@@ -670,6 +712,14 @@ function renderMore(el) {
       <label class="btn">양식 올리기 (.hwpx)<input type="file" accept=".hwpx" hidden id="tplin"></label>
       <a class="btn" href="templates/estimate_template.hwpx" download="견적서_예시양식.hwpx">예시 양식 받기</a>
       <button class="btn" id="tplreset">예시 양식으로 되돌리기</button></details>
+    <details id="imp-sec"><summary>📥 지난 작업 메모 가져오기</summary><div class="form">
+      <p class="hint">날짜별로 적어 둔 메모 파일(.html / .txt)을 올리거나 글을 붙여넣으면, 날짜마다 달력 기록으로 넣어 줍니다. 날짜 줄 모양: <code>3/24</code>, <code>2023년 12월 18일</code></p>
+      <label class="btn sm">📄 메모 파일 고르기<input type="file" accept=".html,.htm,.txt,text/plain,text/html" hidden id="impfile"></label>
+      <label>또는 붙여넣기<textarea id="imptext" rows="4" placeholder="3/24&#10;드리움 스크린죠 13&#10;누수 40 300평집"></textarea></label>
+      <div class="g2"><label>첫 연도 <small>(메모에 연도가 없을 때)</small><input id="impyear" type="number" inputmode="numeric"></label>
+      <label>넣을 달<select id="impmonth"><option value="">전체</option></select></label></div>
+      <p class="hint" id="impinfo"></p>
+      <button class="btn primary" id="impgo" disabled>가져오기</button></div></details>
     <details><summary>고객 목록</summary><div id="custs"></div></details>
     <details><summary>백업 · 복원 (중요)</summary>
       <p class="hint">클라우드 저장을 켜면 자동으로 안전하게 보관됩니다. 이 백업 파일은 추가 보험용입니다(클라우드를 안 쓸 때는 꼭 주기적으로 받아두세요).</p>
@@ -748,6 +798,7 @@ function renderMore(el) {
   state.jobs.forEach((j) => { if (!j.customer) return; const k = j.customer + '|' + (j.phone || ''); const v = cm.get(k) || { name: j.customer, phone: j.phone, n: 0, s: 0, u: 0, last: '' }; v.n++; v.s += Number(j.amount) || 0; v.u += unpaidOf(j); if (j.date > v.last) v.last = j.date; cm.set(k, v); });
   $('#custs').innerHTML = `<table class="tbl"><tr><th>고객</th><th>횟수</th><th>총액</th><th>미수</th><th>최근</th></tr>${[...cm.values()].sort((a, b) => b.last.localeCompare(a.last)).map((v) => `<tr><td>${esc(v.name)}<br><small>${v.phone ? `<a href="tel:${esc(v.phone)}">${esc(v.phone)}</a>` : ''}</small></td><td>${v.n}</td><td class="r">${won(v.s)}</td><td class="r ${v.u ? 'red' : ''}">${won(v.u)}</td><td>${fmtDate(v.last)}</td></tr>`).join('') || '<tr><td colspan="5">작업 기록이 쌓이면 자동으로 만들어집니다</td></tr>'}</table>`;
   drawCloud(); drawInstall();
+  setupImport();
   $('#bk').onclick = backup;
   $('#rs').onchange = restore;
 }
@@ -880,6 +931,38 @@ function drawInstall() {
   box.innerHTML = installHTML() + '<p class="hint">설치하면 주소창 없이 앱처럼 열리고, 인터넷이 없어도 켜집니다.</p>';
   const b = $('#do-install', box);
   if (b) b.onclick = async () => { installEvt.prompt(); await installEvt.userChoice; installEvt = null; render(); };
+}
+
+function setupImport() {
+  let parsed = [];
+  const text = () => $('#imptext').value;
+  const refresh = () => {
+    const t = text();
+    if (!t.trim()) { parsed = []; $('#impinfo').textContent = ''; $('#impgo').disabled = true; return; }
+    if (!$('#impyear').value) $('#impyear').value = MemoImport.guessYear(t) || new Date().getFullYear();
+    parsed = MemoImport.parseMemo(t, Number($('#impyear').value));
+    const months = {}; parsed.forEach((e) => { const k = e.date.slice(0, 7); months[k] = (months[k] || 0) + 1; });
+    const cur = $('#impmonth').value;
+    $('#impmonth').innerHTML = `<option value="">전체 (${parsed.length}일)</option>` + Object.entries(months).map(([k, n]) => `<option value="${k}" ${k === cur ? 'selected' : ''}>${k.slice(0, 4)}년 ${Number(k.slice(5))}월 (${n}일)</option>`).join('');
+    const pick = parsed.filter((e) => !$('#impmonth').value || e.date.startsWith($('#impmonth').value));
+    $('#impinfo').innerHTML = pick.length ? `넣을 날짜 <b>${pick.length}일</b>: ${pick[0].date} ~ ${pick[pick.length - 1].date}<br>예) ${esc(pick[0].date)} — ${esc(pick[0].lines.slice(0, 2).join(' / '))}` : '날짜 줄을 찾지 못했습니다 (예: 3/24)';
+    $('#impgo').disabled = !pick.length;
+  };
+  $('#impfile').onchange = async (ev) => { const f = ev.target.files[0]; if (!f) return; $('#imptext').value = await f.text(); $('#impyear').value = ''; refresh(); };
+  $('#imptext').oninput = refresh; $('#impyear').oninput = refresh; $('#impmonth').onchange = refresh;
+  $('#impgo').onclick = async () => {
+    const pick = parsed.filter((e) => !$('#impmonth').value || e.date.startsWith($('#impmonth').value));
+    if (!pick.length || !confirm(`${pick.length}일치 기록을 달력에 넣을까요?\n(이미 같은 내용이 있는 날은 건너뜁니다)`)) return;
+    let added = 0, skipped = 0;
+    for (const e of pick) {
+      const desc = e.lines.join('\n');
+      if (state.jobs.some((j) => j.date === e.date && (j.desc || '').trim() === desc.trim())) { skipped++; continue; }
+      const j = { id: uid(), date: e.date, desc, customer: '', phone: '', address: '', type: '', time: '', amount: 0, paid: 0, photos: [], checklist: [], memo: '', status: 'done', src: 'memo' };
+      await DB.put('jobs', j); state.jobs.push(j); added++;
+    }
+    alert(`${added}일 넣었습니다${skipped ? ` (같은 내용 ${skipped}일은 건너뜀)` : ''}.`);
+    state.calSel = pick[0].date; state.calMonth = new Date(pick[0].date + 'T00:00'); location.hash = 'cal';
+  };
 }
 
 function downloadBlob(blob, name) {
