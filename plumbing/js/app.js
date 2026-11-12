@@ -300,8 +300,11 @@ async function editJob(id, date) {
       <label>날짜<input type="date" name="date" value="${j.date}" required></label>
       <label>내용 <small>— 카톡·메모를 그대로 붙여넣으면 됩니다</small>
         <textarea name="desc" rows="14" placeholder="예) 미메이드아파트 209동 603호&#10;욕실 배관교체, 철거 및 복구, 세척작업">${esc(j.desc)}</textarea></label>
-      <div class="row wrap"><button type="button" class="btn sm" id="jpaste">📋 붙여넣기</button></div>
+      <div class="row wrap"><button type="button" class="btn sm" id="jpaste">📋 붙여넣기</button>
+        <label class="btn sm">📷 사진 추가<input type="file" accept="image/*" multiple hidden id="photoin"></label></div>
+      <div class="photos" id="photos"></div>
       <div class="actions"><button class="btn primary big">저장</button></div>
+      <div class="actions"><button type="button" class="btn" id="jband">밴드에 올리기${j.bandShared ? ' <small>(올림 ✔)</small>' : ''}</button></div>
       ${isNew ? '' : '<div class="actions"><button type="button" class="btn danger" id="del">삭제</button></div>'}
     </form>`, (root) => {
     const f = $('#jobf', root);
@@ -313,15 +316,45 @@ async function editJob(id, date) {
         toast('붙여넣었습니다');
       } catch (err) { f.desc.focus(); toast('내용 칸을 길게 눌러 붙여넣기 하세요'); }
     };
-    f.onsubmit = async (e) => {
-      e.preventDefault();
-      if (!f.desc.value.trim()) { toast('내용을 넣어주세요'); return; }
+    j.photos = j.photos || [];
+    const added = [], removed = []; // 저장 전까지는 사진을 실제로 지우지 않는다
+    const drawPhotos = async () => {
+      const box = $('#photos', root);
+      box.innerHTML = (await Promise.all(j.photos.map(async (pid) => `<div class="ph"><img src="${await photoURL(pid)}" alt=""><button type="button" data-pdel="${pid}">×</button></div>`))).join('');
+      $$('[data-pdel]', box).forEach((b) => b.onclick = () => {
+        if (!confirm('사진을 뺄까요?')) return;
+        j.photos = j.photos.filter((x) => x !== b.dataset.pdel); removed.push(b.dataset.pdel); drawPhotos();
+      });
+    };
+    drawPhotos();
+    $('#photoin', root).onchange = async (e) => {
+      for (const file of e.target.files) {
+        try {
+          const blob = await resizeImage(file); const pid = uid();
+          await DB.put('photos', { id: pid, blob, jobId: j.id }); j.photos.push(pid); added.push(pid);
+        } catch (err) { toast('사진을 읽지 못했습니다'); }
+      }
+      e.target.value = ''; drawPhotos();
+    };
+    const commit = async () => {
+      if (!f.desc.value.trim() && !j.photos.length) { toast('내용이나 사진을 넣어주세요'); return false; }
       j.date = f.date.value; j.desc = f.desc.value.trim();
       await DB.put('jobs', j);
+      for (const pid of removed) await DB.del('photos', pid);
+      added.length = 0; removed.length = 0;
       const i = state.jobs.findIndex((x) => x.id === j.id); if (i >= 0) state.jobs[i] = j; else state.jobs.push(j);
+      return true;
+    };
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      if (!(await commit())) return;
       toast('저장했습니다'); closeSheet();
     };
-    $('[data-close]', root).onclick = closeSheet;
+    $('#jband', root).onclick = async () => { if (await commit()) bandSheet(j); };
+    $('[data-close]', root).onclick = async () => {
+      for (const pid of added) await DB.del('photos', pid); // 저장 안 하고 닫으면 방금 넣은 사진은 버림
+      closeSheet();
+    };
     const del = $('#del', root);
     if (del) del.onclick = async () => {
       if (!confirm('이 기록을 삭제할까요?')) return;
@@ -340,36 +373,52 @@ function smsLink(j) {
   return `sms:${(j.phone || '').replace(/[^\d+]/g, '')}?&body=${encodeURIComponent(body)}`;
 }
 
-/* ───────── 밴드 공유 ─────────
- * 밴드 공식 Open API 글쓰기는 텍스트만 지원하므로, 사진+글은 휴대폰 '공유하기'로 밴드 앱에 넘긴다.
- * 사용자는 밴드 앱에서 밴드 선택 → [게시] 만 누르면 된다. */
-async function shareToBand(j) {
-  const text = fill(state.settings.bandTemplate, {
-    유형: j.type || '', 지역: areaOf(j.address), 내용: j.desc || '', 날짜: fmtDate(j.date), 고객: '',
-  }).replace(/\[\s*\]\s*/g, '').replace(/#\s/g, '').replace(/#(?=\s|$)/g, '').trim();
-  const files = [];
+/* ───────── 밴드에 올리기 ─────────
+ * 밴드 공식 Open API 글쓰기는 글만 받는다(사진 칸 없음). 그래서 사진+글은 휴대폰 '공유하기'로 밴드 앱에 넘긴다.
+ * 흐름: 글 확인(주소·금액 지우기) → [확인] → 공유창에서 밴드 → 밴드 앱에서 밴드 고르고 [게시].
+ * 아이폰은 버튼을 누른 그 순간에만 공유창을 열어 주므로, 사진 파일은 화면을 열 때 미리 읽어 둔다. */
+async function bandSheet(j) {
+  const photos = [];
   for (const pid of j.photos || []) {
-    let p = await DB.get('photos', pid);
-    if (!p && Cloud.ready) { const b = await Cloud.fetchPhoto(pid); if (b) p = { blob: b }; }
-    if (p) files.push(new File([p.blob], `photo_${files.length + 1}.jpg`, { type: 'image/jpeg' }));
+    let blob = (await DB.get('photos', pid))?.blob;
+    if (!blob && Cloud.ready) blob = await Cloud.fetchPhoto(pid);
+    if (blob) photos.push({ id: pid, on: true, file: new File([blob], `photo_${photos.length + 1}.jpg`, { type: 'image/jpeg' }) });
   }
-  const markShared = async () => {
-    j.bandShared = true; const c = j.checklist.find((x) => x.t === '밴드 업로드'); if (c) c.d = true;
-    await DB.put('jobs', j); const i = state.jobs.findIndex((x) => x.id === j.id); if (i >= 0) state.jobs[i] = j;
-  };
-  try { await navigator.clipboard.writeText(text); } catch (e) { /* 무시 */ }
-  if (files.length && navigator.canShare && navigator.canShare({ files })) {
-    try {
-      await navigator.share({ files, text, title: j.type || '' });
-      await markShared(); toast('공유 완료. 글이 빠졌으면 붙여넣기 하세요(복사됨)');
-    } catch (e) { if (e.name !== 'AbortError') toast('공유 실패: ' + e.message); }
-    return;
-  }
-  // 사진 공유가 안 되는 환경(PC 등): 글만 밴드 공유창으로
-  const url = `https://band.us/plugin/share?body=${encodeURIComponent(text)}&route=${encodeURIComponent(location.host || 'localhost')}`;
-  window.open(url, '_blank', 'noopener');
-  await markShared();
-  toast(files.length ? '이 기기는 사진 공유를 지원하지 않아 글만 보냈습니다. 휴대폰에서 다시 시도하세요' : '밴드 공유창을 열었습니다');
+  const thumbs = await Promise.all(photos.map(async (p) => `<div class="ph" data-pid="${p.id}"><img src="${await photoURL(p.id)}" alt=""><span class="pick">✓</span></div>`));
+  openSheet(`
+    <div class="sheethead"><h2>밴드에 올리기</h2><button class="btn sm" data-close>닫기</button></div>
+    <div class="form">
+      <label>밴드에 올릴 글 <small>— 손님 주소·동호수·금액은 지우고 올리세요</small>
+        <textarea id="bandtxt" rows="9">${esc(j.bandText ?? j.desc ?? '')}</textarea></label>
+      ${photos.length ? `<p class="hint">올릴 사진 ${photos.length}장 — 빼고 싶은 사진은 눌러서 끄세요</p><div class="photos">${thumbs.join('')}</div>` : '<p class="hint">사진이 없어 글만 보냅니다. 사진은 기록 화면의 [📷 사진 추가]로 넣습니다.</p>'}
+      <div class="actions"><button type="button" class="btn primary big" id="bandgo">확인 — 밴드로 보내기</button></div>
+      <p class="hint">누르면 공유 창이 뜹니다 → <b>밴드</b> 선택 → 올릴 밴드 고르기 → [게시].<br>밴드에서 글이 비어 있으면 글 칸을 길게 눌러 붙여넣기 하세요(글은 자동으로 복사됩니다).</p>
+    </div>`, (root) => {
+    $('[data-close]', root).onclick = closeSheet;
+    $$('.ph[data-pid]', root).forEach((d) => d.onclick = () => {
+      const p = photos.find((x) => x.id === d.dataset.pid); p.on = !p.on; d.classList.toggle('off', !p.on);
+    });
+    $('#bandgo', root).onclick = () => {
+      const text = $('#bandtxt', root).value.trim();
+      const files = photos.filter((p) => p.on).map((p) => p.file);
+      if (!text && !files.length) { toast('글이나 사진이 있어야 합니다'); return; }
+      const done = async (msg) => {
+        j.bandShared = true; j.bandText = text;
+        await DB.put('jobs', j); const i = state.jobs.findIndex((x) => x.id === j.id); if (i >= 0) state.jobs[i] = j;
+        closeSheet(); toast(msg);
+      };
+      try { navigator.clipboard.writeText(text).catch(() => {}); } catch (e) { /* 무시 */ }
+      const data = files.length ? { files, text } : { text };
+      if (navigator.share && (!files.length || (navigator.canShare && navigator.canShare({ files })))) {
+        navigator.share(data).then(() => done('밴드로 넘겼습니다'))
+          .catch((e) => { if (e.name !== 'AbortError') toast('공유하지 못했습니다: ' + e.message); });
+        return;
+      }
+      // 공유하기가 없는 기기(PC 등): 글만 밴드 글쓰기 창으로
+      window.open(`https://band.us/plugin/share?body=${encodeURIComponent(text)}&route=${encodeURIComponent(location.host || 'localhost')}`, '_blank', 'noopener');
+      done(files.length ? '이 기기는 사진 공유가 안 되어 글만 보냈습니다. 휴대폰에서 해 주세요' : '밴드 글쓰기 창을 열었습니다');
+    };
+  });
 }
 
 /* ───────── 견적서 ───────── */
