@@ -126,11 +126,8 @@ const Cloud = (() => {
       if (p.del) {
         await client.storage.from('photos').remove([photoPath(id)]);
       } else {
-        const rec = await DB.get('photos', id);
-        if (rec) {
-          const { error } = await client.storage.from('photos').upload(photoPath(id), rec.blob, { upsert: true, contentType: 'image/jpeg' });
-          if (error) throw error;
-        }
+        // 사진은 클라우드에 올리지 않는다(저장 공간 아끼기, 사용자 요청). 사진은 찍은 폰에만 남는다.
+        // 예전에 올라가 있던 사진은 fetchPhoto 로 계속 받아볼 수 있고, 지우면 위에서 클라우드에서도 지워진다.
       }
       const now = (await DB.getKV('photoQueue', {})) || {};
       if (now[id] && now[id].del === p.del) delete now[id];

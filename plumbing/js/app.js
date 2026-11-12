@@ -89,11 +89,17 @@ function jobName(j) {
   const first = String(j.desc || '').split(/\r?\n/).map((l) => l.trim()).find(Boolean) || '';
   return first ? (first.length > 24 ? first.slice(0, 24) + '…' : first) : '(내용 없음)';
 }
+// 기록에 사진이 있는지 / 밴드에 올렸는지 표시
+const hasPhotos = (j) => (j.photos || []).length > 0;
+function jobMarks(j) {
+  const n = (j.photos || []).length;
+  return `<span class="marks">${n ? `<span class="mk">📷 ${n}</span>` : ''}${j.bandShared ? '<span class="mk ok">밴드 ✔</span>' : n ? '<span class="mk no">밴드 전</span>' : ''}</span>`;
+}
 function jobCard(j) {
   const lines = String(j.desc || '').split(/\r?\n/).filter((l) => l.trim());
   const preview = (j.customer ? lines : lines.slice(1)).slice(0, 3).join('\n');
   return `<div class="card job" data-job="${j.id}">
-    <div class="row"><b>${esc(jobName(j))}</b></div>
+    <div class="row"><b>${esc(jobName(j))}</b>${jobMarks(j)}</div>
     ${preview ? `<div class="desc">${esc(preview.slice(0, 160))}</div>` : ''}
   </div>`;
 }
@@ -198,11 +204,14 @@ function renderCal(el) {
       <span class="dn">${d}</span>
       ${js.length ? `<span class="dot ${hasUnpaid ? 'unpaid' : 'rec'}">${js.length}</span>` : ''}
       ${ts.length ? '<span class="tdot"></span>' : ''}
+      ${js.some(hasPhotos) ? `<span class="pdot ${js.some((j) => hasPhotos(j) && !j.bandShared) ? 'no' : 'ok'}"></span>` : ''}
       ${sum ? `<span class="amt">${sum >= 10000 ? Math.round(sum / 10000) + '만' : won(sum)}</span>` : ''}</div>`;
   }
   const sel = state.calSel;
   const dayJobs = state.jobs.filter((j) => j.date === sel).sort((a, b) => (a.time || '').localeCompare(b.time || ''));
   const dayTodos = state.todos.filter((t) => t.date === sel);
+  const waiting = state.jobs.filter((j) => hasPhotos(j) && !j.bandShared).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  if (!waiting.length) state.calWait = false;
   el.innerHTML = `
     <div class="searchbox"><input type="search" id="calq" placeholder="🔍 기록·할 일 검색 (예: 209동, 분배기)" value="${esc(state.calQuery || '')}" autocomplete="off"></div>
     <div id="calres"></div>
@@ -213,7 +222,9 @@ function renderCal(el) {
       <select id="jd"></select>
       <button class="btn sm primary" id="jgo">이동</button><button class="btn sm" id="jtoday">오늘</button>
     </div>
-    <div class="legend"><span class="dot rec">n</span> 기록 수 <span class="tdot"></span> 할 일</div>
+    ${waiting.length ? `<button class="btn sm chip" id="waitbtn">📷 밴드에 안 올린 사진 기록 ${waiting.length}건 ${state.calWait ? '▴' : '▾'}</button>` : ''}
+    ${state.calWait ? waiting.map((j) => `<div class="card job" data-job="${j.id}"><div class="sub">${fmtDate(j.date)} ${j.date ? j.date.slice(0, 4) + '년' : ''}</div><div class="row"><b>${esc(jobName(j))}</b>${jobMarks(j)}</div></div>`).join('') : ''}
+    <div class="legend"><span class="dot rec">n</span> 기록 수 <span class="tdot"></span> 할 일 <span class="pdot no"></span> 사진 있음(밴드 전) <span class="pdot ok"></span> 밴드에 올림</div>
     <div class="cal">${WEEK.map((w) => `<div class="wk">${w}</div>`).join('')}${cells}</div>
     <h3>${fmtDate(sel)} <button class="btn sm primary" id="add-job">＋ 기록</button></h3>
     ${dayJobs.map(jobCard).join('') || '<p class="empty">기록 없음</p>'}
@@ -235,6 +246,7 @@ function renderCal(el) {
   $('#nm').onclick = () => { state.calMonth = new Date(y, mo + 1, 1); render(); };
   $$('.cell[data-d]', el).forEach((c) => c.onclick = () => { state.calSel = c.dataset.d; render(); });
   $('#add-job').onclick = () => editJob(null, sel);
+  if ($('#waitbtn')) $('#waitbtn').onclick = () => { state.calWait = !state.calWait; render(); };
   bindJobCards(el); bindTodos(el);
 }
 
@@ -286,6 +298,33 @@ async function photoURL(id) {
   const u = URL.createObjectURL(blob); photoURLs.set(id, u); return u;
 }
 
+/* 사진 크게 보기: 누르면 화면 가득, 좌우로 밀거나 ‹ › 로 넘김 */
+function viewPhotos(urls, start = 0) {
+  if (!urls.length) return;
+  let i = Math.max(0, start);
+  const v = document.createElement('div'); v.id = 'viewer';
+  v.innerHTML = `<button type="button" class="vx" aria-label="닫기">닫기</button><span class="vn"></span>
+    <button type="button" class="vp" aria-label="이전">‹</button><img alt=""><button type="button" class="vnx" aria-label="다음">›</button>`;
+  const img = $('img', v);
+  const show = () => {
+    img.src = urls[i]; $('.vn', v).textContent = `${i + 1} / ${urls.length}`;
+    $('.vp', v).hidden = i === 0; $('.vnx', v).hidden = i === urls.length - 1;
+  };
+  const go = (d) => { const n = i + d; if (n >= 0 && n < urls.length) { i = n; show(); } };
+  const close = () => { v.remove(); document.removeEventListener('keydown', key); };
+  const key = (e) => { if (e.key === 'Escape') close(); else if (e.key === 'ArrowLeft') go(-1); else if (e.key === 'ArrowRight') go(1); };
+  $('.vx', v).onclick = close; $('.vp', v).onclick = () => go(-1); $('.vnx', v).onclick = () => go(1);
+  let x0 = null;
+  v.addEventListener('touchstart', (e) => { x0 = e.touches.length === 1 ? e.touches[0].clientX : null; }, { passive: true });
+  v.addEventListener('touchend', (e) => {
+    if (x0 === null) return;
+    const dx = e.changedTouches[0].clientX - x0; x0 = null;
+    if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
+  });
+  document.addEventListener('keydown', key);
+  document.body.appendChild(v); show();
+}
+
 /* ───────── 작업 편집 ───────── */
 async function editJob(id, date) {
   // 작업 기록 = 날짜 + 글(카톡·메모 붙여넣기)만. 예전 기록의 다른 값은 건드리지 않고 그대로 둔다.
@@ -320,7 +359,10 @@ async function editJob(id, date) {
     const added = [], removed = []; // 저장 전까지는 사진을 실제로 지우지 않는다
     const drawPhotos = async () => {
       const box = $('#photos', root);
-      box.innerHTML = (await Promise.all(j.photos.map(async (pid) => `<div class="ph"><img src="${await photoURL(pid)}" alt=""><button type="button" data-pdel="${pid}">×</button></div>`))).join('');
+      const urls = await Promise.all(j.photos.map(photoURL));
+      box.innerHTML = j.photos.map((pid, k) => `<div class="ph">${urls[k] ? `<img src="${urls[k]}" alt="" data-view="${pid}">` : '<div class="nophoto">다른 폰에<br>있는 사진</div>'}<button type="button" data-pdel="${pid}">×</button></div>`).join('');
+      const seen = urls.filter(Boolean);
+      $$('[data-view]', box).forEach((im) => im.onclick = () => viewPhotos(seen, seen.indexOf(im.getAttribute('src'))));
       $$('[data-pdel]', box).forEach((b) => b.onclick = () => {
         if (!confirm('사진을 뺄까요?')) return;
         j.photos = j.photos.filter((x) => x !== b.dataset.pdel); removed.push(b.dataset.pdel); drawPhotos();
@@ -777,6 +819,7 @@ function renderMore(el) {
     <details><summary>백업 · 복원 (중요)</summary>
       <p class="hint">클라우드 저장을 켜면 자동으로 안전하게 보관됩니다. 이 백업 파일은 추가 보험용입니다(클라우드를 안 쓸 때는 꼭 주기적으로 받아두세요).</p>
       <label class="chk"><input type="checkbox" id="bkph" checked> 사진 포함</label>
+      <p class="hint">📷 사진은 클라우드에 올라가지 않고 <b>이 폰에만</b> 있습니다. 폰을 바꾸거나 앱을 지우기 전에 [사진 포함]으로 백업을 받아두세요.</p>
       <button class="btn primary" id="bk">⬇ 백업 받기</button>
       <label class="btn">⬆ 백업 복원<input type="file" accept=".json" hidden id="rs"></label></details>
     <p class="hint">배관·누수 업무수첩 v2 · 클라우드를 켜지 않으면 데이터는 이 기기 밖으로 나가지 않습니다.</p>`;

@@ -163,6 +163,21 @@ code { background: var(--fill2); padding: 1px 5px; border-radius: 5px; font-size
 .dot.rec { background: var(--pri); } .dot.paid { background: var(--green); } .dot.unpaid { background: var(--red); }
 .tdot { width: 6px; height: 6px; border-radius: 50%; background: var(--amber); display: inline-block; }
 .cell .tdot { position: absolute; top: 6px; right: 8px; }
+.pdot { width: 6px; height: 6px; border-radius: 2px; display: inline-block; } .pdot.no { background: var(--pri); } .pdot.ok { background: var(--green); }
+.cell .pdot { position: absolute; top: 6px; left: 8px; }
+.marks { display: inline-flex; gap: 4px; margin-left: auto; flex: none; }
+.mk { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 999px; background: var(--fill); color: var(--sub); white-space: nowrap; }
+.mk.ok { color: var(--green); } .mk.no { color: var(--pri); }
+#waitbtn { margin: 0 0 8px; }
+.nophoto { width: 100%; height: 100%; border-radius: 10px; background: var(--fill); color: var(--sub); font-size: 11px; display: grid; place-items: center; text-align: center; }
+#viewer { position: fixed; inset: 0; z-index: 30; background: #000; display: flex; align-items: center; justify-content: center; touch-action: pinch-zoom; }
+#viewer img { max-width: 100%; max-height: 100%; object-fit: contain; }
+#viewer button { position: absolute; border: 0; color: #fff; background: rgba(60, 60, 60, .7); }
+#viewer .vx { top: calc(12px + env(safe-area-inset-top)); right: 12px; padding: 8px 14px; border-radius: 999px; font-size: 16px; font-weight: 600; }
+#viewer .vn { position: absolute; top: calc(20px + env(safe-area-inset-top)); left: 16px; color: #fff; font-size: 15px; }
+#viewer .vp, #viewer .vnx { top: 50%; transform: translateY(-50%); width: 44px; height: 64px; font-size: 30px; border-radius: 12px; }
+#viewer .vp { left: 6px; } #viewer .vnx { right: 6px; }
+#viewer [hidden] { display: none; }
 .cell .amt { font-size: 10px; color: var(--sub); }
 .card.result mark { background: rgba(255, 204, 0, .4); color: inherit; border-radius: 3px; padding: 0 1px; }
 
