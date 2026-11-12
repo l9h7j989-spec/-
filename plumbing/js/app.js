@@ -29,7 +29,7 @@ const DEFAULT_SETTINGS = {
   notify: { enabled: true, days: 7 },
 };
 
-const state = { settings: null, jobs: [], todos: [], estimates: [], calMonth: new Date(), calSel: ymd(), moneyMonth: ymd().slice(0, 7) };
+const state = { settings: null, jobs: [], bands: [], todos: [], estimates: [], calMonth: new Date(), calSel: ymd(), moneyMonth: ymd().slice(0, 7) };
 
 /* ───────── 공통 ───────── */
 function toast(msg) {
@@ -58,7 +58,21 @@ async function loadAll() {
       if (!state.settings.presets.some((x) => x.name === name)) state.settings.presets.push({ name, spec: '', unit: '', price: 0 });
     state.settings.presetsAdded = 2;
   }
-  [state.jobs, state.todos, state.estimates] = await Promise.all([DB.all('jobs'), DB.all('todos'), DB.all('estimates')]);
+  let all;
+  [all, state.todos, state.estimates] = await Promise.all([DB.all('jobs'), DB.all('todos'), DB.all('estimates')]);
+  // 밴드 글은 일정 기록과 따로 다룬다. 저장은 같은 'jobs' 칸에 band:true 표시로 한다
+  // (Supabase 표가 kind 를 jobs/todos/estimates/settings 만 받아서 새 종류를 만들면 동기화가 깨진다).
+  // v19~v20 에서 기록에 붙였던 사진·밴드 글은 밴드 글로 옮긴다. id 를 'b_'+기록id 로 정해 두 폰이 각자 옮겨도 겹치지 않는다.
+  for (const j of all.filter((x) => !x.band && ((x.photos || []).length || x.bandShared || x.bandText))) {
+    if (!all.some((x) => x.id === 'b_' + j.id)) {
+      const b = { id: 'b_' + j.id, band: true, date: j.date, desc: j.bandText || '', photos: j.photos || [], bandShared: !!j.bandShared };
+      await DB.put('jobs', b); all.push(b);
+    }
+    j.photos = []; delete j.bandShared; delete j.bandText;
+    await DB.put('jobs', j);
+  }
+  state.jobs = all.filter((x) => !x.band);
+  state.bands = all.filter((x) => x.band);
 }
 const saveSettings = () => DB.setKV('settings', state.settings);
 
@@ -89,17 +103,23 @@ function jobName(j) {
   const first = String(j.desc || '').split(/\r?\n/).map((l) => l.trim()).find(Boolean) || '';
   return first ? (first.length > 24 ? first.slice(0, 24) + '…' : first) : '(내용 없음)';
 }
-// 기록에 사진이 있는지 / 밴드에 올렸는지 표시
-const hasPhotos = (j) => (j.photos || []).length > 0;
-function jobMarks(j) {
-  const n = (j.photos || []).length;
-  return `<span class="marks">${n ? `<span class="mk">📷 ${n}</span>` : ''}${j.bandShared ? '<span class="mk ok">밴드 ✔</span>' : n ? '<span class="mk no">밴드 전</span>' : ''}</span>`;
+// 밴드 글 카드: 사진 수 / 밴드에 올렸는지 표시
+function bandCard(b, showDate) {
+  const n = (b.photos || []).length;
+  const lines = String(b.desc || '').split(/\r?\n/).filter((l) => l.trim());
+  return `<div class="card job" data-band="${b.id}">
+    ${showDate ? `<div class="sub">${fmtDate(b.date)} ${b.date ? b.date.slice(0, 4) + '년' : ''}</div>` : ''}
+    <div class="row"><b>${esc(lines[0] ? (lines[0].length > 20 ? lines[0].slice(0, 20) + '…' : lines[0]) : '(글 없음)')}</b>
+      <span class="marks">${n ? `<span class="mk">📷 ${n}</span>` : ''}${b.bandShared ? '<span class="mk ok">밴드 ✔</span>' : '<span class="mk no">밴드 전</span>'}</span></div>
+    ${lines.length > 1 ? `<div class="desc">${esc(lines.slice(1, 3).join('\n').slice(0, 120))}</div>` : ''}
+  </div>`;
 }
+function bindBandCards(el) { $$('[data-band]', el).forEach((c) => c.onclick = () => editBand(c.dataset.band)); }
 function jobCard(j) {
   const lines = String(j.desc || '').split(/\r?\n/).filter((l) => l.trim());
   const preview = (j.customer ? lines : lines.slice(1)).slice(0, 3).join('\n');
   return `<div class="card job" data-job="${j.id}">
-    <div class="row"><b>${esc(jobName(j))}</b>${jobMarks(j)}</div>
+    <div class="row"><b>${esc(jobName(j))}</b></div>
     ${preview ? `<div class="desc">${esc(preview.slice(0, 160))}</div>` : ''}
   </div>`;
 }
@@ -145,7 +165,7 @@ function renderHome(el) {
       <div class="stat warn" onclick="location.hash='money'"><small>받을 돈 (${unpaidCnt}건)</small><b>${won(unpaid)}</b></div>
     </div>` : ''}
     ${!isStandalone() && (installEvt || isIOS()) && !localStorage.getItem('hideInstall') ? `<div class="banner">📲 홈 화면에 설치하면 앱처럼 씁니다 <button class="btn sm primary" id="q-inst">설치</button><button class="x" id="q-hide">×</button></div>` : ''}
-    <div class="quick"><button class="btn primary" id="q-job">＋ 기록</button><button class="btn" id="q-est">＋ 견적서</button></div>
+    <div class="quick"><button class="btn primary" id="q-job">＋ 기록</button><button class="btn" id="q-est">＋ 견적서</button><button class="btn" id="q-band">＋ 밴드 글</button></div>
     ${workSummary(today, 'stats')}
     <h3>오늘 기록 <small>${todayJobs.length}건</small></h3>
     ${todayJobs.map(jobCard).join('') || '<p class="empty">오늘 기록이 없습니다</p>'}
@@ -156,6 +176,7 @@ function renderHome(el) {
     ${asSoon.length ? `<h3>A/S 기간 곧 끝남 (30일 이내)</h3>${asSoon.map(jobCard).join('')}` : ''}
     ${workSummary(today, 'past')}`;
   $('#q-job').onclick = () => editJob(null, today);
+  $('#q-band').onclick = () => editBand(null, today);
   $('#q-est').onclick = () => editEstimate(null);
   const qi = $('#q-inst'); if (qi) qi.onclick = async () => { if (installEvt) { installEvt.prompt(); await installEvt.userChoice; installEvt = null; render(); } else location.hash = 'more'; };
   const qh = $('#q-hide'); if (qh) qh.onclick = () => { try { localStorage.setItem('hideInstall', '1'); } catch (e) { /* 무시 */ } render(); };
@@ -204,13 +225,14 @@ function renderCal(el) {
       <span class="dn">${d}</span>
       ${js.length ? `<span class="dot ${hasUnpaid ? 'unpaid' : 'rec'}">${js.length}</span>` : ''}
       ${ts.length ? '<span class="tdot"></span>' : ''}
-      ${js.some(hasPhotos) ? `<span class="pdot ${js.some((j) => hasPhotos(j) && !j.bandShared) ? 'no' : 'ok'}"></span>` : ''}
+      ${(() => { const bs = state.bands.filter((b) => b.date === ds); return bs.length ? `<span class="pdot ${bs.some((b) => !b.bandShared) ? 'no' : 'ok'}"></span>` : ''; })()}
       ${sum ? `<span class="amt">${sum >= 10000 ? Math.round(sum / 10000) + '만' : won(sum)}</span>` : ''}</div>`;
   }
   const sel = state.calSel;
   const dayJobs = state.jobs.filter((j) => j.date === sel).sort((a, b) => (a.time || '').localeCompare(b.time || ''));
   const dayTodos = state.todos.filter((t) => t.date === sel);
-  const waiting = state.jobs.filter((j) => hasPhotos(j) && !j.bandShared).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  const dayBands = state.bands.filter((b) => b.date === sel);
+  const waiting = state.bands.filter((b) => !b.bandShared).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   if (!waiting.length) state.calWait = false;
   el.innerHTML = `
     <div class="searchbox"><input type="search" id="calq" placeholder="🔍 기록·할 일 검색 (예: 209동, 분배기)" value="${esc(state.calQuery || '')}" autocomplete="off"></div>
@@ -222,12 +244,14 @@ function renderCal(el) {
       <select id="jd"></select>
       <button class="btn sm primary" id="jgo">이동</button><button class="btn sm" id="jtoday">오늘</button>
     </div>
-    ${waiting.length ? `<button class="btn sm chip" id="waitbtn">📷 밴드에 안 올린 사진 기록 ${waiting.length}건 ${state.calWait ? '▴' : '▾'}</button>` : ''}
-    ${state.calWait ? waiting.map((j) => `<div class="card job" data-job="${j.id}"><div class="sub">${fmtDate(j.date)} ${j.date ? j.date.slice(0, 4) + '년' : ''}</div><div class="row"><b>${esc(jobName(j))}</b>${jobMarks(j)}</div></div>`).join('') : ''}
-    <div class="legend"><span class="dot rec">n</span> 기록 수 <span class="tdot"></span> 할 일 <span class="pdot no"></span> 사진 있음(밴드 전) <span class="pdot ok"></span> 밴드에 올림</div>
+    ${waiting.length ? `<button class="btn sm chip" id="waitbtn">📷 밴드에 아직 안 올린 글 ${waiting.length}건 ${state.calWait ? '▴' : '▾'}</button>` : ''}
+    ${state.calWait ? waiting.map((b) => bandCard(b, true)).join('') : ''}
+    <div class="legend"><span class="dot rec">n</span> 기록 수 <span class="tdot"></span> 할 일 <span class="pdot no"></span> 밴드 글(올리기 전) <span class="pdot ok"></span> 밴드에 올림</div>
     <div class="cal">${WEEK.map((w) => `<div class="wk">${w}</div>`).join('')}${cells}</div>
     <h3>${fmtDate(sel)} <button class="btn sm primary" id="add-job">＋ 기록</button></h3>
     ${dayJobs.map(jobCard).join('') || '<p class="empty">기록 없음</p>'}
+    <h3>밴드 글 <button class="btn sm" id="add-band">＋ 밴드 글</button></h3>
+    ${dayBands.map((b) => bandCard(b)).join('') || '<p class="empty">밴드 글 없음</p>'}
     <h3>할 일</h3>${todoList(dayTodos)}${addTodoForm(sel)}`;
   const q = $('#calq');
   q.oninput = () => { state.calQuery = q.value; drawSearch($('#calres')); };
@@ -247,7 +271,8 @@ function renderCal(el) {
   $$('.cell[data-d]', el).forEach((c) => c.onclick = () => { state.calSel = c.dataset.d; render(); });
   $('#add-job').onclick = () => editJob(null, sel);
   if ($('#waitbtn')) $('#waitbtn').onclick = () => { state.calWait = !state.calWait; render(); };
-  bindJobCards(el); bindTodos(el);
+  $('#add-band').onclick = () => editBand(null, sel);
+  bindJobCards(el); bindBandCards(el); bindTodos(el);
 }
 
 // 기록·할 일 검색: 띄어쓰기로 나눈 단어가 모두 들어간 것 (최근 날짜 순)
@@ -339,11 +364,8 @@ async function editJob(id, date) {
       <label>날짜<input type="date" name="date" value="${j.date}" required></label>
       <label>내용 <small>— 카톡·메모를 그대로 붙여넣으면 됩니다</small>
         <textarea name="desc" rows="14" placeholder="예) 미메이드아파트 209동 603호&#10;욕실 배관교체, 철거 및 복구, 세척작업">${esc(j.desc)}</textarea></label>
-      <div class="row wrap"><button type="button" class="btn sm" id="jpaste">📋 붙여넣기</button>
-        <label class="btn sm">📷 사진 추가<input type="file" accept="image/*" multiple hidden id="photoin"></label></div>
-      <div class="photos" id="photos"></div>
+      <div class="row wrap"><button type="button" class="btn sm" id="jpaste">📋 붙여넣기</button></div>
       <div class="actions"><button class="btn primary big">저장</button></div>
-      <div class="actions"><button type="button" class="btn" id="jband">밴드에 올리기${j.bandShared ? ' <small>(올림 ✔)</small>' : ''}</button></div>
       ${isNew ? '' : '<div class="actions"><button type="button" class="btn danger" id="del">삭제</button></div>'}
     </form>`, (root) => {
     const f = $('#jobf', root);
@@ -355,48 +377,15 @@ async function editJob(id, date) {
         toast('붙여넣었습니다');
       } catch (err) { f.desc.focus(); toast('내용 칸을 길게 눌러 붙여넣기 하세요'); }
     };
-    j.photos = j.photos || [];
-    const added = [], removed = []; // 저장 전까지는 사진을 실제로 지우지 않는다
-    const drawPhotos = async () => {
-      const box = $('#photos', root);
-      const urls = await Promise.all(j.photos.map(photoURL));
-      box.innerHTML = j.photos.map((pid, k) => `<div class="ph">${urls[k] ? `<img src="${urls[k]}" alt="" data-view="${pid}">` : '<div class="nophoto">다른 폰에<br>있는 사진</div>'}<button type="button" data-pdel="${pid}">×</button></div>`).join('');
-      const seen = urls.filter(Boolean);
-      $$('[data-view]', box).forEach((im) => im.onclick = () => viewPhotos(seen, seen.indexOf(im.getAttribute('src'))));
-      $$('[data-pdel]', box).forEach((b) => b.onclick = () => {
-        if (!confirm('사진을 뺄까요?')) return;
-        j.photos = j.photos.filter((x) => x !== b.dataset.pdel); removed.push(b.dataset.pdel); drawPhotos();
-      });
-    };
-    drawPhotos();
-    $('#photoin', root).onchange = async (e) => {
-      for (const file of e.target.files) {
-        try {
-          const blob = await resizeImage(file); const pid = uid();
-          await DB.put('photos', { id: pid, blob, jobId: j.id }); j.photos.push(pid); added.push(pid);
-        } catch (err) { toast('사진을 읽지 못했습니다'); }
-      }
-      e.target.value = ''; drawPhotos();
-    };
-    const commit = async () => {
-      if (!f.desc.value.trim() && !j.photos.length) { toast('내용이나 사진을 넣어주세요'); return false; }
-      j.date = f.date.value; j.desc = f.desc.value.trim();
-      await DB.put('jobs', j);
-      for (const pid of removed) await DB.del('photos', pid);
-      added.length = 0; removed.length = 0;
-      const i = state.jobs.findIndex((x) => x.id === j.id); if (i >= 0) state.jobs[i] = j; else state.jobs.push(j);
-      return true;
-    };
     f.onsubmit = async (e) => {
       e.preventDefault();
-      if (!(await commit())) return;
+      if (!f.desc.value.trim()) { toast('내용을 넣어주세요'); return; }
+      j.date = f.date.value; j.desc = f.desc.value.trim();
+      await DB.put('jobs', j);
+      const i = state.jobs.findIndex((x) => x.id === j.id); if (i >= 0) state.jobs[i] = j; else state.jobs.push(j);
       toast('저장했습니다'); closeSheet();
     };
-    $('#jband', root).onclick = async () => { if (await commit()) bandSheet(j); };
-    $('[data-close]', root).onclick = async () => {
-      for (const pid of added) await DB.del('photos', pid); // 저장 안 하고 닫으면 방금 넣은 사진은 버림
-      closeSheet();
-    };
+    $('[data-close]', root).onclick = closeSheet;
     const del = $('#del', root);
     if (del) del.onclick = async () => {
       if (!confirm('이 기록을 삭제할까요?')) return;
@@ -417,48 +406,95 @@ function smsLink(j) {
 
 /* ───────── 밴드에 올리기 ─────────
  * 밴드 공식 Open API 글쓰기는 글만 받는다(사진 칸 없음). 그래서 사진+글은 휴대폰 '공유하기'로 밴드 앱에 넘긴다.
- * 흐름: 글 확인(주소·금액 지우기) → [확인] → 공유창에서 밴드 → 밴드 앱에서 밴드 고르고 [게시].
- * 아이폰은 버튼을 누른 그 순간에만 공유창을 열어 주므로, 사진 파일은 화면을 열 때 미리 읽어 둔다. */
-async function bandSheet(j) {
-  const photos = [];
-  for (const pid of j.photos || []) {
+ * 밴드 글은 일정 기록(메모)과 따로 쓴다: 달력·오늘 화면의 [＋ 밴드 글] → 글 + 사진 → [확인] → 공유창에서 밴드 → 밴드 고르고 [게시].
+ * 아이폰은 버튼을 누른 그 순간에만 공유창을 열어 주므로, 사진 파일은 미리 읽어 두고 누른 뒤에는 await 없이 바로 share 를 부른다. */
+async function editBand(id, date) {
+  const b = id ? structuredClone(state.bands.find((x) => x.id === id)) : { id: uid(), band: true, date: date || ymd(), desc: '', photos: [], bandShared: false };
+  if (!b) return;
+  const isNew = !id;
+  b.photos = b.photos || [];
+  const files = new Map(); // 사진 id → 공유할 파일 (이 폰에 있는 사진만)
+  const loadFile = async (pid) => {
     let blob = (await DB.get('photos', pid))?.blob;
     if (!blob && Cloud.ready) blob = await Cloud.fetchPhoto(pid);
-    if (blob) photos.push({ id: pid, on: true, file: new File([blob], `photo_${photos.length + 1}.jpg`, { type: 'image/jpeg' }) });
-  }
-  const thumbs = await Promise.all(photos.map(async (p) => `<div class="ph" data-pid="${p.id}"><img src="${await photoURL(p.id)}" alt=""><span class="pick">✓</span></div>`));
+    if (blob) files.set(pid, new File([blob], `photo_${pid}.jpg`, { type: 'image/jpeg' }));
+  };
+  await Promise.all(b.photos.map(loadFile));
   openSheet(`
-    <div class="sheethead"><h2>밴드에 올리기</h2><button class="btn sm" data-close>닫기</button></div>
-    <div class="form">
-      <label>밴드에 올릴 글 <small>— 손님 주소·동호수·금액은 지우고 올리세요</small>
-        <textarea id="bandtxt" rows="9">${esc(j.bandText ?? j.desc ?? '')}</textarea></label>
-      ${photos.length ? `<p class="hint">올릴 사진 ${photos.length}장 — 빼고 싶은 사진은 눌러서 끄세요</p><div class="photos">${thumbs.join('')}</div>` : '<p class="hint">사진이 없어 글만 보냅니다. 사진은 기록 화면의 [📷 사진 추가]로 넣습니다.</p>'}
+    <div class="sheethead"><h2>${isNew ? '새 밴드 글' : '밴드 글'}${b.bandShared ? ' <small class="mk ok">밴드 ✔</small>' : ''}</h2><button class="btn sm" data-close>닫기</button></div>
+    <form id="bandf" class="form">
+      <label>날짜<input type="date" name="date" value="${b.date}" required></label>
+      <label>밴드에 올릴 글
+        <textarea name="desc" rows="8" placeholder="예) 욕실 누수 배관 교체 작업했습니다.&#10;누수·배관 문의 환영합니다.">${esc(b.desc)}</textarea></label>
+      <div class="row wrap"><label class="btn sm">📷 사진 추가<input type="file" accept="image/*" multiple hidden id="photoin"></label></div>
+      <div class="photos" id="photos"></div>
       <div class="actions"><button type="button" class="btn primary big" id="bandgo">확인 — 밴드로 보내기</button></div>
       <p class="hint">누르면 공유 창이 뜹니다 → <b>밴드</b> 선택 → 올릴 밴드 고르기 → [게시].<br>밴드에서 글이 비어 있으면 글 칸을 길게 눌러 붙여넣기 하세요(글은 자동으로 복사됩니다).</p>
-    </div>`, (root) => {
-    $('[data-close]', root).onclick = closeSheet;
-    $$('.ph[data-pid]', root).forEach((d) => d.onclick = () => {
-      const p = photos.find((x) => x.id === d.dataset.pid); p.on = !p.on; d.classList.toggle('off', !p.on);
-    });
+      <div class="actions"><button class="btn">보내지 않고 저장만</button></div>
+      ${isNew ? '' : '<div class="actions"><button type="button" class="btn danger" id="del">삭제</button></div>'}
+    </form>`, (root) => {
+    const f = $('#bandf', root);
+    const added = [], removed = []; // 저장 전까지는 사진을 실제로 지우지 않는다
+    const drawPhotos = async () => {
+      const box = $('#photos', root);
+      const urls = await Promise.all(b.photos.map(photoURL));
+      box.innerHTML = b.photos.map((pid, k) => `<div class="ph">${urls[k] ? `<img src="${urls[k]}" alt="" data-view="${pid}">` : '<div class="nophoto">다른 폰에<br>있는 사진</div>'}<button type="button" data-pdel="${pid}">×</button></div>`).join('');
+      const seen = urls.filter(Boolean);
+      $$('[data-view]', box).forEach((im) => im.onclick = () => viewPhotos(seen, seen.indexOf(im.getAttribute('src'))));
+      $$('[data-pdel]', box).forEach((x) => x.onclick = () => {
+        if (!confirm('사진을 뺄까요?')) return;
+        b.photos = b.photos.filter((p) => p !== x.dataset.pdel); removed.push(x.dataset.pdel); drawPhotos();
+      });
+    };
+    drawPhotos();
+    $('#photoin', root).onchange = async (e) => {
+      for (const file of e.target.files) {
+        try {
+          const blob = await resizeImage(file); const pid = uid();
+          await DB.put('photos', { id: pid, blob, jobId: b.id }); b.photos.push(pid); added.push(pid);
+          files.set(pid, new File([blob], `photo_${pid}.jpg`, { type: 'image/jpeg' }));
+        } catch (err) { toast('사진을 읽지 못했습니다'); }
+      }
+      e.target.value = ''; drawPhotos();
+    };
+    const ok = () => {
+      if (f.desc.value.trim() || b.photos.length) return true;
+      toast('글이나 사진을 넣어주세요'); return false;
+    };
+    const save = async () => {
+      b.date = f.date.value; b.desc = f.desc.value.trim();
+      await DB.put('jobs', b);
+      for (const pid of removed.splice(0)) await DB.del('photos', pid);
+      added.length = 0;
+      const i = state.bands.findIndex((x) => x.id === b.id); if (i >= 0) state.bands[i] = b; else state.bands.push(b);
+    };
+    f.onsubmit = async (e) => { e.preventDefault(); if (!ok()) return; await save(); toast('저장했습니다'); closeSheet(); };
     $('#bandgo', root).onclick = () => {
-      const text = $('#bandtxt', root).value.trim();
-      const files = photos.filter((p) => p.on).map((p) => p.file);
-      if (!text && !files.length) { toast('글이나 사진이 있어야 합니다'); return; }
-      const done = async (msg) => {
-        j.bandShared = true; j.bandText = text;
-        await DB.put('jobs', j); const i = state.jobs.findIndex((x) => x.id === j.id); if (i >= 0) state.jobs[i] = j;
-        closeSheet(); toast(msg);
-      };
+      if (!ok()) return;
+      const text = f.desc.value.trim();
+      const fs = b.photos.map((pid) => files.get(pid)).filter(Boolean);
+      const saved = save(); // 공유창을 닫아도 쓴 글은 남도록 먼저 저장(기다리지 않음)
+      const done = async (msg) => { await saved; b.bandShared = true; await save(); closeSheet(); toast(msg); };
       try { navigator.clipboard.writeText(text).catch(() => {}); } catch (e) { /* 무시 */ }
-      const data = files.length ? { files, text } : { text };
-      if (navigator.share && (!files.length || (navigator.canShare && navigator.canShare({ files })))) {
+      const data = fs.length ? { files: fs, text } : { text };
+      if (navigator.share && (!fs.length || (navigator.canShare && navigator.canShare({ files: fs })))) {
         navigator.share(data).then(() => done('밴드로 넘겼습니다'))
           .catch((e) => { if (e.name !== 'AbortError') toast('공유하지 못했습니다: ' + e.message); });
         return;
       }
       // 공유하기가 없는 기기(PC 등): 글만 밴드 글쓰기 창으로
       window.open(`https://band.us/plugin/share?body=${encodeURIComponent(text)}&route=${encodeURIComponent(location.host || 'localhost')}`, '_blank', 'noopener');
-      done(files.length ? '이 기기는 사진 공유가 안 되어 글만 보냈습니다. 휴대폰에서 해 주세요' : '밴드 글쓰기 창을 열었습니다');
+      done(fs.length ? '이 기기는 사진 공유가 안 되어 글만 보냈습니다. 휴대폰에서 해 주세요' : '밴드 글쓰기 창을 열었습니다');
+    };
+    $('[data-close]', root).onclick = async () => {
+      for (const pid of added) await DB.del('photos', pid); // 저장 안 하고 닫으면 방금 넣은 사진은 버림
+      closeSheet();
+    };
+    const del = $('#del', root);
+    if (del) del.onclick = async () => {
+      if (!confirm('이 밴드 글을 삭제할까요? (밴드에 이미 올라간 글은 밴드에서 따로 지워야 합니다)')) return;
+      for (const p of new Set([...b.photos, ...removed])) await DB.del('photos', p);
+      await DB.del('jobs', b.id); state.bands = state.bands.filter((x) => x.id !== b.id); closeSheet();
     };
   });
 }
@@ -1108,7 +1144,7 @@ async function stampImage(file) {
 }
 const blobToDataURL = (b) => new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(b); });
 async function backup() {
-  const out = { app: 'plumbing-biz', v: 1, at: new Date().toISOString(), settings: state.settings, jobs: state.jobs, todos: state.todos, estimates: state.estimates, photos: [] };
+  const out = { app: 'plumbing-biz', v: 1, at: new Date().toISOString(), settings: state.settings, jobs: [...state.jobs, ...state.bands], todos: state.todos, estimates: state.estimates, photos: [] };
   if ($('#bkph').checked) for (const p of await DB.all('photos')) out.photos.push({ id: p.id, jobId: p.jobId, data: await blobToDataURL(p.blob) });
   downloadBlob(new Blob([JSON.stringify(out)], { type: 'application/json' }), `업무수첩_백업_${ymd()}.json`);
 }
