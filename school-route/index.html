@@ -3,41 +3,57 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#1d4ed8">
+<meta name="theme-color" content="#f2f2f7">
+<meta name="color-scheme" content="light">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="영업 동선">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="미미 프레쉬">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="format-detection" content="telephone=no">
-<title>영업 동선</title>
+<title>미미 프레쉬</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header id="topbar"><h1 id="title">거래처</h1></header>
+<header id="top">
+  <div class="top-in">
+    <div>
+      <div class="brand"><i></i>미미 프레쉬</div>
+      <h1 id="title">거래처</h1>
+    </div>
+    <div id="top-act"></div>
+  </div>
+</header>
 
 <main>
   <section id="tab-clients" class="tab"></section>
-  <section id="tab-route" class="tab" hidden>
-    <div id="route-head"></div>
+  <section id="tab-sales" class="tab" hidden>
+    <div id="sales-top"></div>
+    <div id="sales-sum"></div>
     <div id="map-wrap" hidden><div id="map"></div><p id="map-msg" class="hint"></p></div>
-    <div id="route-body"></div>
+    <div id="sales-list"></div>
   </section>
+  <section id="tab-docs" class="tab" hidden></section>
   <section id="tab-settings" class="tab" hidden></section>
 </main>
 
-<nav id="nav">
-  <button data-tab="clients" class="on"><span class="ico">🏫</span>거래처</button>
-  <button data-tab="route"><span class="ico">🧭</span>오늘 동선<b id="nav-count" hidden></b></button>
-  <button data-tab="settings"><span class="ico">⚙️</span>설정</button>
+<nav id="nav" aria-label="메뉴">
+  <button data-tab="clients" class="on"></button>
+  <button data-tab="sales"></button>
+  <button data-tab="docs"></button>
+  <button data-tab="settings"></button>
 </nav>
 
 <div id="sheet" hidden></div>
-<div id="toast" hidden></div>
+<div id="toast" role="status" hidden></div>
 <input id="import-file" type="file" accept="application/json,.json" hidden>
 
 <script src="js/route.js"></script>
 <script src="js/store.js"></script>
 <script src="js/kakao.js"></script>
+<script src="js/drive.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

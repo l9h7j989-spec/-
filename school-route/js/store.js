@@ -1,16 +1,19 @@
 /*
- * store.js — 데이터 저장소 (브라우저 localStorage) + 백업
+ * store.js — 데이터 저장소 (브라우저 localStorage) + 백업 형식
  *
- * 데이터 구조
+ * 데이터 구조 (version 2)
  * {
- *   version: 1,
- *   settings: { kakaoKey, office: {name, address, lat, lng} | null },
+ *   version: 2,
+ *   updatedAt: 마지막으로 내용을 바꾼 시각,
+ *   settings: { kakaoKey, kakaoRestKey, office:{name,address,lat,lng}|null,
+ *               googleClientId, driveAuto, driveSyncedAt, driveLocalAt },
  *   clients: [ { id, name, type, address, lat, lng, contactName, phone, memo,
  *                status, placeId, createdAt, updatedAt } ],
  *   visits:  [ { id, clientId, date:'YYYY-MM-DD', memo, createdAt } ],
- *   today:   { date, selected:[clientId], order:[clientId]|null,
- *              recommended:[clientId]|null, recommendedKm, method },
- *   quotes:  [ ]   ← 나중에 추가할 견적서 자리.
+ *   today:   { date, stops:[ {id, clientId|'' , name, address, lat, lng, phone, doneDate} ],
+ *              planned, recommended:[stopId], recommendedKm, method },
+ *              ← stops 의 순서가 곧 방문 순서입니다.
+ *   quotes:  [ ]   ← 견적서 자리 (서류 메뉴에서 사용 예정).
  *                    { id, clientId, date, items:[{name, qty, unitPrice}],
  *                      total, status, sentAt, memo } 형태로 쓰면
  *                    clientId 로 거래처 정보(이름·주소·담당자·연락처)를 끌어올 수 있습니다.
@@ -19,7 +22,7 @@
 (function (root) {
   'use strict';
   var KEY = 'schoolRoute.v1';
-  var TYPES = ['초등학교', '중학교', '고등학교', '기관'];
+  var TYPES = ['초등학교', '중학교', '고등학교', '기관', '기타'];
   var STATUSES = ['미방문', '방문 완료', '견적 발송', '계약'];
 
   function todayStr() {
@@ -29,55 +32,85 @@
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
   function num(v) { var n = typeof v === 'number' ? v : parseFloat(v); return isFinite(n) ? n : null; }
   function str(v) { return v == null ? '' : String(v); }
+  function isDate(v) { return /^\d{4}-\d{2}-\d{2}$/.test(str(v)); }
 
+  function emptyToday() { return { date: todayStr(), stops: [], planned: false, recommended: null, recommendedKm: null, method: null }; }
   function empty() {
     return {
-      version: 1,
-      settings: { kakaoKey: '', office: null },
-      clients: [], visits: [],
-      today: { date: todayStr(), selected: [], order: null, recommended: null, recommendedKm: null, method: null },
-      quotes: []
+      version: 2, updatedAt: '',
+      settings: { kakaoKey: '', kakaoRestKey: '', office: null, googleClientId: '', driveAuto: true, driveSyncedAt: '', driveLocalAt: '' },
+      clients: [], visits: [], today: emptyToday(), quotes: []
     };
   }
 
-  /** 어떤 모양의 데이터가 들어와도 안전한 형태로 정리 (백업 불러오기에도 사용) */
+  /** 어떤 모양의 데이터가 들어와도 안전한 형태로 정리 (옛 버전·백업 불러오기에도 사용) */
   function normalize(raw) {
     var db = empty();
     if (!raw || typeof raw !== 'object') return db;
+    db.updatedAt = str(raw.updatedAt);
     var s = raw.settings || {};
     db.settings.kakaoKey = str(s.kakaoKey).trim();
+    db.settings.kakaoRestKey = str(s.kakaoRestKey).trim();
+    db.settings.googleClientId = str(s.googleClientId).trim();
+    db.settings.driveAuto = s.driveAuto !== false;
+    db.settings.driveSyncedAt = str(s.driveSyncedAt);
+    db.settings.driveLocalAt = str(s.driveLocalAt);
     if (s.office && num(s.office.lat) != null && num(s.office.lng) != null) {
       db.settings.office = { name: str(s.office.name), address: str(s.office.address), lat: num(s.office.lat), lng: num(s.office.lng) };
     }
-    var ids = {};
+    var ids = {}, byId = {};
     (Array.isArray(raw.clients) ? raw.clients : []).forEach(function (c) {
       if (!c || typeof c !== 'object' || !str(c.name).trim()) return;
       var id = str(c.id) || uid();
       if (ids[id]) id = uid();
       ids[id] = true;
-      db.clients.push({
+      var o = {
         id: id, name: str(c.name).trim(),
-        type: TYPES.indexOf(c.type) >= 0 ? c.type : '기관',
+        type: TYPES.indexOf(c.type) >= 0 ? c.type : '기타',
         address: str(c.address), lat: num(c.lat), lng: num(c.lng),
         contactName: str(c.contactName), phone: str(c.phone), memo: str(c.memo),
         status: STATUSES.indexOf(c.status) >= 0 ? c.status : '미방문',
         placeId: str(c.placeId),
         createdAt: str(c.createdAt) || new Date().toISOString(),
         updatedAt: str(c.updatedAt) || new Date().toISOString()
-      });
+      };
+      byId[id] = o; db.clients.push(o);
     });
     (Array.isArray(raw.visits) ? raw.visits : []).forEach(function (v) {
-      if (!v || !ids[str(v.clientId)] || !/^\d{4}-\d{2}-\d{2}$/.test(str(v.date))) return;
+      if (!v || !ids[str(v.clientId)] || !isDate(v.date)) return;
       db.visits.push({ id: str(v.id) || uid(), clientId: str(v.clientId), date: str(v.date), memo: str(v.memo), createdAt: str(v.createdAt) || new Date().toISOString() });
     });
-    var t = raw.today || {};
-    var keep = function (arr) { return Array.isArray(arr) ? arr.map(str).filter(function (id) { return ids[id]; }) : null; };
-    db.today.date = /^\d{4}-\d{2}-\d{2}$/.test(str(t.date)) ? t.date : todayStr();
-    db.today.selected = keep(t.selected) || [];
-    db.today.order = keep(t.order);
-    db.today.recommended = keep(t.recommended);
-    db.today.recommendedKm = num(t.recommendedKm);
-    db.today.method = t.method === 'exact' || t.method === 'approx' ? t.method : null;
+
+    var t = raw.today || {}, T = db.today;
+    T.date = isDate(t.date) ? t.date : todayStr();
+    if (Array.isArray(t.stops)) {
+      var seen = {};
+      t.stops.forEach(function (p) {
+        if (!p || num(p.lat) == null || num(p.lng) == null || !str(p.name).trim()) return;
+        var id = str(p.id) || uid();
+        if (seen[id]) return;
+        seen[id] = true;
+        T.stops.push({
+          id: id, clientId: ids[str(p.clientId)] ? str(p.clientId) : '',
+          name: str(p.name).trim(), address: str(p.address), lat: num(p.lat), lng: num(p.lng),
+          phone: str(p.phone), doneDate: isDate(p.doneDate) ? p.doneDate : ''
+        });
+      });
+      T.planned = !!t.planned && T.stops.length > 0;
+      var rec = Array.isArray(t.recommended) ? t.recommended.map(str).filter(function (id) { return seen[id]; }) : null;
+      T.recommended = rec && rec.length === T.stops.length ? rec : null;
+      T.recommendedKm = T.recommended ? num(t.recommendedKm) : null;
+      T.method = t.method === 'exact' || t.method === 'approx' ? t.method : null;
+    } else {
+      // 옛 버전(선택 목록 + 순서 목록) → 새 형식으로 옮김
+      var order = Array.isArray(t.order) && t.order.length ? t.order : (Array.isArray(t.selected) ? t.selected : []);
+      order.map(str).forEach(function (cid) {
+        var c = byId[cid];
+        if (!c || c.lat == null || c.lng == null) return;
+        T.stops.push({ id: uid(), clientId: c.id, name: c.name, address: c.address, lat: c.lat, lng: c.lng, phone: c.phone, doneDate: '' });
+      });
+      T.planned = Array.isArray(t.order) && t.order.length > 0 && T.stops.length > 0;
+    }
     db.quotes = (Array.isArray(raw.quotes) ? raw.quotes : []).filter(function (q) { return q && ids[str(q.clientId)]; });
     return db;
   }
@@ -104,6 +137,6 @@
   root.Store = {
     TYPES: TYPES, STATUSES: STATUSES,
     SAMPLE_OFFICE: SAMPLE_OFFICE, SAMPLE_CLIENTS: SAMPLE_CLIENTS,
-    todayStr: todayStr, uid: uid, empty: empty, normalize: normalize, load: load, save: save
+    todayStr: todayStr, uid: uid, empty: empty, emptyToday: emptyToday, normalize: normalize, load: load, save: save
   };
 })(typeof self !== 'undefined' ? self : this);
