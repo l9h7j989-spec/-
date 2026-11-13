@@ -588,7 +588,7 @@ function editOpinion(id) {
         if (bytes.warnings && bytes.warnings.length) alert(bytes.warnings.join('\n'));
         const name = fname();
         const blob = new Blob([bytes], { type: 'application/x-hwp' });
-        downloadBlob(blob, name); toast('휴대폰에 저장했습니다');
+        offerFile(blob, name);
       } catch (err) { console.error(err); alert('소견서 만들기 실패: ' + err.message); }
     };
     const d = $('#o-del', root);
@@ -679,7 +679,11 @@ function editEstimate(id, fromJob) {
       $$('.item input', root).forEach((inp) => inp.onchange = () => {
         const it = e.items[inp.closest('.item').dataset.i], k = inp.dataset.k;
         it[k] = k === 'price' ? parseMoney(inp.value) || 0 : k === 'qty' ? (inp.value.trim() === '' ? '' : parseFloat(inp.value) || '') : inp.value;
-        drawItems();
+        // 줄 전체를 다시 그리지 않는다: 다시 그리면 방금 누른 다음 칸이 사라져 PC에서 입력이 끊긴다
+        if (k === 'price') inp.value = it.price ? won(it.price) : '';
+        const amt = $('.amt', inp.closest('.item'));
+        amt.textContent = it.price ? won(EstCore.lineAmount(it)) : '단가?'; amt.classList.toggle('red', !it.price);
+        drawTotals();
       });
       $$('[data-idel]', root).forEach((b) => b.onclick = () => { e.items.splice(b.dataset.idel, 1); drawItems(); });
       drawTotals();
@@ -718,7 +722,7 @@ function editEstimate(id, fromJob) {
         const stamp = state.settings.company.stamp ? await (await fetch(state.settings.company.stamp)).arrayBuffer() : null;
         const blob = await Hwpx.fillHwpx(tpl, b.data, b.items, { JSZip, DOMParser, XMLSerializer, outType: 'blob', stamp });
         const name = `견적서_${(e.address || e.customer || '고객').replace(/[\\/:*?"<>|]/g, '')}_${e.date}.hwpx`;
-        downloadBlob(blob, name); toast('휴대폰에 저장했습니다');
+        offerFile(blob, name);
       } catch (err) { console.error(err); alert('견적서 생성 실패: ' + err.message); }
     };
     $('#e-xlsx', root).onclick = async () => {
@@ -731,7 +735,7 @@ function editEstimate(id, fromJob) {
         const { file: bytes, warnings } = XlsFill.fillXls(tpl, e, EstCore);
         const file = new Blob([bytes], { type: 'application/vnd.ms-excel' }), name = base + '.xls';
         if (warnings.length) alert(warnings.join('\n'));
-        downloadBlob(file, name); toast('휴대폰에 저장했습니다');
+        offerFile(file, name);
       } catch (err) { console.error(err); alert('엑셀 견적서 만들기 실패: ' + err.message); }
     };
     $('#e-print', root).onclick = async () => { await save(true); printEstimate(e); };
@@ -1124,6 +1128,51 @@ function setupImport() {
   };
 }
 
+/* 만든 문서 파일(견적서·소견서)을 넘겨주는 창.
+ * 파일을 만든 뒤 자동으로 내려받게 하면 기기·브라우저에 따라 조용히 막히는 일이 있어서,
+ * 사용자가 직접 누르는 [저장] / [보내기] 버튼을 보여 준다(직접 누른 동작은 막히지 않는다).
+ * - PC 크롬·엣지: 저장할 폴더와 이름을 고르는 창(showSaveFilePicker)
+ * - 그 밖: 내려받기(다운로드) 폴더로 저장
+ * - 보내기: 휴대폰 공유하기(카톡 나에게 보내기·메일 등). 기기가 이 파일 종류를 못 보내면 버튼을 숨긴다 */
+function offerFile(blob, name) {
+  const type = blob.type || 'application/octet-stream';
+  const file = new File([blob], name, { type });
+  let canSend = false;
+  try { canSend = !!(navigator.share && navigator.canShare && navigator.canShare({ files: [file] })); } catch (e) { /* 무시 */ }
+  const picker = typeof window.showSaveFilePicker === 'function';
+  const ext = (name.match(/\.[A-Za-z0-9]+$/) || ['.bin'])[0];
+  document.getElementById('filebox')?.remove();
+  const v = document.createElement('div'); v.id = 'filebox';
+  v.innerHTML = `<div class="fbox">
+    <h3>파일을 만들었습니다</h3>
+    <p class="fname">${esc(name)}</p>
+    <button type="button" class="btn primary big" id="fb-save">💾 ${picker ? '저장 (폴더 고르기)' : '이 기기에 저장'}</button>
+    ${canSend ? '<button type="button" class="btn big" id="fb-send">📤 보내기 (카톡·메일 등)</button>' : ''}
+    <p class="hint" id="fb-msg">${picker ? '' : '저장하면 <b>다운로드(내려받기)</b> 폴더에 들어갑니다.'}</p>
+    <button type="button" class="btn big" id="fb-close">닫기</button>
+  </div>`;
+  const msg = (t) => { $('#fb-msg', v).innerHTML = t; };
+  $('#fb-close', v).onclick = () => v.remove();
+  $('#fb-save', v).onclick = async () => {
+    if (picker) {
+      try {
+        const h = await window.showSaveFilePicker({ suggestedName: name, types: [{ description: '문서', accept: { [type]: [ext] } }] });
+        const w = await h.createWritable(); await w.write(blob); await w.close();
+        msg(`✅ <b>${esc(h.name)}</b> 로 저장했습니다.`); return;
+      } catch (e) {
+        if (e.name === 'AbortError') return; // 사용자가 창을 닫음
+        console.error(e); // 폴더 고르기가 안 되는 환경이면 아래 내려받기로
+      }
+    }
+    downloadBlob(blob, name);
+    msg('✅ <b>다운로드(내려받기)</b> 폴더에 저장했습니다. 안 보이면 브라우저의 내려받기 목록을 확인하세요.');
+  };
+  if (canSend) $('#fb-send', v).onclick = () => {
+    navigator.share({ files: [file] }).then(() => msg('✅ 보냈습니다.'))
+      .catch((e) => { if (e.name !== 'AbortError') msg('보내지 못했습니다: ' + esc(e.message) + ' — [저장]을 써 주세요.'); });
+  };
+  document.body.appendChild(v);
+}
 function downloadBlob(blob, name) {
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
