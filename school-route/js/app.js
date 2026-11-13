@@ -535,7 +535,10 @@
       var legHtml = function (i) {
         return '<div class="leg">' + icon('car', 16) + (road ? '<b>' + fmtKm(road.legs[i].km) + '</b> · ' + fmtMin(road.legs[i].min) : '직선 <b>' + fmtKm(legs[i]) + '</b>') + '</div>';
       };
-      var b = '<div class="depot"><span class="dot">' + icon('home', 16) + '</span>출발 · ' + esc(office.name || '사무실') + '</div><div id="stops">';
+      var left = stops.filter(function (x) { return !stopDone(x); });
+      var b = '<button class="btn pri wide big" data-act="navi-all">' + icon('car', 22) + (left.length ? '일괄 안내 시작 (남은 ' + left.length + '곳)' : '사무실로 안내 시작') + '</button>' +
+        '<p class="hint" style="text-align:center">카카오내비가 방문 순서대로 한 번에 안내합니다. 한 번에 4곳까지라, 도착 후 방문 완료를 누르고 다시 누르면 다음 구간으로 이어집니다.</p>';
+      b += '<div class="depot"><span class="dot">' + icon('home', 16) + '</span>출발 · ' + esc(office.name || '사무실') + '</div><div id="stops">';
       stops.forEach(function (s, i) {
         var dn = stopDone(s);
         b += '<div class="stop' + (dn ? ' done' : '') + '" data-id="' + s.id + '">' + legHtml(i) +
@@ -1054,6 +1057,17 @@
       if (!key) return toast('카카오내비는 설정에 카카오 JavaScript 키를 넣어야 쓸 수 있습니다.');
       try { if (!KakaoApi.naviStart(key, s)) toast('카카오내비를 준비하고 있습니다. 잠시 뒤 한 번 더 눌러 주세요.'); }
       catch (e) { toast('카카오내비를 열지 못했습니다. 카카오맵 단추를 써 주세요.'); }
+    },
+    'navi-all': function () {
+      var key = db.settings.kakaoKey, office = db.settings.office;
+      if (!key) return toast('카카오내비는 설정에 카카오 JavaScript 키를 넣어야 쓸 수 있습니다.');
+      // 아직 안 간 곳을 순서대로, 마지막에 사무실. 앞에서 4곳(경유지 3 + 목적지 1)을 한 번에 안내
+      var seq = db.today.stops.filter(function (x) { return !stopDone(x); }).concat([office]).slice(0, 4);
+      var dest = seq[seq.length - 1], vias = seq.slice(0, -1);
+      try {
+        if (!KakaoApi.naviStart(key, dest, vias)) return toast('카카오내비를 준비하고 있습니다. 잠시 뒤 한 번 더 눌러 주세요.');
+        toast(seq.map(function (x) { return x.name; }).join(' → ') + ' 안내를 시작합니다.');
+      } catch (e) { toast('카카오내비를 열지 못했습니다. 방문지별 카카오맵 단추를 써 주세요.'); }
     },
     'quote-new': function (b) { var c = b.dataset.id ? byId(b.dataset.id) : null; openQuote(null, c); },
     'quote-open': function (b) { openQuote(b.dataset.id); },

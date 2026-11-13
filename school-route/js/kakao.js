@@ -169,9 +169,12 @@
     return naviLoading;
   }
   /** 카카오내비 실행. 준비가 됐으면 true, 아직이면 불러오기만 하고 false */
-  function naviStart(jsKey, p) {
+  function naviStart(jsKey, p, vias) {
     if (!(root.Kakao && root.Kakao.Navi && root.Kakao.isInitialized())) { naviPreload(jsKey).catch(function () { }); return false; }
-    root.Kakao.Navi.start({ name: String(p.name || '목적지').slice(0, 40), x: p.lng, y: p.lat, coordType: 'wgs84' });
+    var opt = { name: String(p.name || '목적지').slice(0, 40), x: p.lng, y: p.lat, coordType: 'wgs84' };
+    // 경유지는 카카오내비가 3곳까지만 받는다
+    if (vias && vias.length) opt.viaPoints = vias.slice(0, 3).map(function (v) { return { name: String(v.name || '경유지').slice(0, 40), x: v.lng, y: v.lat }; });
+    root.Kakao.Navi.start(opt);
     return true;
   }
 
