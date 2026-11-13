@@ -1,6 +1,6 @@
 /*
  * app.js — 화면 동작 (거래처 / 영업 / 서류 / 설정)
- * 계산은 route.js, 저장은 store.js, 카카오는 kakao.js, 구글 드라이브는 drive.js 가 맡습니다.
+ * 계산은 route.js, 저장은 store.js, 카카오는 kakao.js, 로그인·기기 간 저장은 cloud.js 가 맡습니다.
  */
 (function () {
   'use strict';
@@ -9,15 +9,18 @@
   var TABS = [['clients', '거래처', 'building'], ['sales', '영업', 'route'], ['docs', '서류', 'doc'], ['settings', '설정', 'sliders']];
 
   var db = Store.load();
-  // 구글 클라이언트 ID: 앱에 넣어 둔 값(config.js) 또는 "다른 기기용 링크"(#gid=...)로 받는다
-  var CONFIG_GID = (window.AppConfig && String(window.AppConfig.GOOGLE_CLIENT_ID || '').trim()) || '';
+  // 서버(Supabase) 주소와 공개 키: 앱에 넣어 둔 값(config.js) 또는 "다른 기기용 링크"(#sb=...)로 받는다
+  var CFG = window.AppConfig || {};
+  var CONFIG_SB = !!(String(CFG.SUPABASE_URL || '').trim() && String(CFG.SUPABASE_ANON_KEY || '').trim());
   (function () {
-    var m = /[#&]gid=([^&]+)/.exec(location.hash), gid = CONFIG_GID || (m ? decodeURIComponent(m[1]).trim() : '');
+    var m = /[#&]sb=([^&]+)/.exec(location.hash), url = '', key = '';
+    if (CONFIG_SB) { url = String(CFG.SUPABASE_URL).trim(); key = String(CFG.SUPABASE_ANON_KEY).trim(); }
+    else if (m) { var p = decodeURIComponent(m[1]).split('|'); url = (p[0] || '').trim(); key = (p[1] || '').trim(); }
     if (m) try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* 무시 */ }
-    if (gid && gid !== db.settings.googleClientId) { db.settings.googleClientId = gid; Store.save(db); }
+    if (url && key && (url !== db.settings.supabaseUrl || key !== db.settings.supabaseKey)) { db.settings.supabaseUrl = url; db.settings.supabaseKey = key; Store.save(db); }
   })();
-  var ui = { tab: 'clients', q: '', sort: 'recent', fType: '전체', fStatus: '전체', sheet: null, sg: null, drivePaused: false, driveBusy: false, driveError: '' };
-  var map = null, overlays = [], lines = [], salesSeq = 0, sgSeq = 0, sgTimer = null, toastTimer = null, driveTimer = null;
+  var ui = { tab: 'clients', q: '', sort: 'recent', fType: '전체', fStatus: '전체', sheet: null, sg: null, cloudPaused: false, cloudBusy: false, cloudError: '' };
+  var map = null, overlays = [], lines = [], salesSeq = 0, sgSeq = 0, sgTimer = null, toastTimer = null, cloudTimer = null, cloudCheckedAt = 0;
   var roadCache = {}, roadFail = {};
 
   /* ---------- 아이콘 ---------- */
@@ -67,7 +70,7 @@
   function save() {
     db.updatedAt = new Date().toISOString();
     if (!Store.save(db)) toast('저장에 실패했습니다. 휴대폰 저장 공간이나 브라우저의 사생활 보호 모드를 확인해 주세요.');
-    renderNav(); scheduleDrive();
+    renderNav(); scheduleCloud();
   }
   function copyText(text, label) {
     var ok = function () { toast((label || '주소를') + ' 복사했습니다.'); };
@@ -128,16 +131,15 @@
   function renderHeader() {
     $('#title').textContent = TABS.filter(function (t) { return t[0] === ui.tab; })[0][1];
     var a = '';
-    if (db.settings.googleClientId) {
-      var st = driveStatus();
-      a += '<button class="round ' + (st.ok ? 'soft' : 'warn') + '" data-act="drive-tap" aria-label="구글 드라이브: ' + st.text + '">' + icon('cloud', 22) + '</button>';
+    if (Cloud.configured()) {
+      var st = cloudStatus();
+      a += '<button class="round ' + (st.ok ? 'soft' : 'warn') + '" data-act="cloud-tap" aria-label="기기 간 저장: ' + st.text + '">' + icon('cloud', 22) + '</button>';
     }
     if (ui.tab === 'clients') a += '<button class="round pri" data-act="new" aria-label="거래처 추가">' + icon('plus', 24) + '</button>';
     $('#top-act').innerHTML = a;
-    var bar = $('#syncbar'), need = db.settings.googleClientId && !Drive.connected();
+    var bar = $('#syncbar'), need = Cloud.configured() && !Cloud.signedIn();
     bar.hidden = !need;
-    if (need) bar.innerHTML = icon('cloud', 18) + '<span>로그인하면 다른 기기와 내용이 맞춰집니다</span><b>로그인</b>';
-    var lm = $('#login-msg'); if (lm) lm.textContent = ui.driveError || '';
+    if (need) bar.innerHTML = icon('cloud', 18) + '<span>로그인하면 모든 기기에서 같은 내용을 씁니다</span><b>로그인</b>';
   }
   function switchTab(tab) {
     ui.tab = tab; ui.sg = null;
@@ -800,7 +802,7 @@
   function loadTemplate(file) {
     var fr = new FileReader();
     fr.onload = function () {
-      try { Quote.setTemplate(new Uint8Array(fr.result)); toast('견적서 양식을 등록했습니다.'); syncTemplate(true); }
+      try { Quote.setTemplate(new Uint8Array(fr.result)); toast('견적서 양식을 등록했습니다.'); try { localStorage.removeItem('mimifresh.tplSynced'); } catch (e2) { /* 무시 */ } syncTemplate(); }
       catch (e) { toast(e.message); }
       if (ui.sheet) renderSheet(); else render();
     };
@@ -824,24 +826,25 @@
       '<button class="btn pri wide" style="margin-top:12px" data-act="save-key">키 저장</button>' +
       '<p class="hint">카카오 개발자 사이트에 등록할 주소: <b>' + esc(location.origin) + '</b></p></div>';
 
-    var ds = driveStatus();
-    h += '<div class="sec-h"><b>구글 드라이브 저장</b></div><div class="group pad">' +
-      (CONFIG_GID ? '<p class="hint" style="margin-top:0">구글 로그인 정보가 앱에 들어 있습니다. 어느 기기에서든 로그인만 하면 됩니다.</p>' :
-        '<label class="f" for="s-gid" style="margin-top:0">구글 클라이언트 ID</label><input id="s-gid" type="text" value="' + esc(s.googleClientId) + '" placeholder="○○○.apps.googleusercontent.com" autocomplete="off" autocapitalize="off" spellcheck="false">' +
-        '<button class="btn wide" style="margin-top:8px" data-act="save-gid">클라이언트 ID 저장</button>' +
-        (s.googleClientId ? '<button class="btn soft wide" style="margin-top:8px" data-act="copy-link">' + icon('copy', 18) + '다른 기기용 링크 복사</button>' : ''));
-    if (s.googleClientId) {
-      h += '<div class="pos ' + (ds.ok ? 'yes' : 'no') + '">' + icon('cloud', 18) + esc(ds.text) + '</div>';
-      h += Drive.connected() ?
-        '<div class="row2" style="margin-top:10px"><button class="btn pri" data-act="drive-save">지금 저장</button><button class="btn" data-act="drive-load">드라이브에서 가져오기</button></div>' :
-        '<button class="btn pri wide" style="margin-top:10px" data-act="drive-connect">' + icon('cloud', 20) + 'Google로 로그인</button>';
+    var cs = cloudStatus();
+    h += '<div class="sec-h"><b>계정 · 기기 간 저장</b></div><div class="group pad">';
+    if (!Cloud.configured()) {
+      h += '<label class="f" for="s-sburl" style="margin-top:0">Supabase 주소 (Project URL)</label><input id="s-sburl" type="text" value="' + esc(s.supabaseUrl) + '" placeholder="https://○○○.supabase.co" autocomplete="off" autocapitalize="off" spellcheck="false">' +
+        '<label class="f" for="s-sbkey">Supabase 공개 키 (Publishable key)</label><input id="s-sbkey" type="text" value="' + esc(s.supabaseKey) + '" placeholder="sb_publishable_… 로 시작하는 키" autocomplete="off" autocapitalize="off" spellcheck="false">' +
+        '<button class="btn pri wide" style="margin-top:12px" data-act="save-sb">저장</button>' +
+        '<p class="hint" style="margin-bottom:0">한 번 넣으면 로그인 화면이 나옵니다. 만드는 방법은 README 4번에 있습니다.</p>';
+    } else if (Cloud.signedIn()) {
+      h += '<div class="pos yes" style="margin-top:0">' + icon('check', 18) + esc(Cloud.email()) + ' 로그인됨</div>' +
+        '<div class="pos ' + (cs.ok ? 'yes' : 'no') + '">' + icon('cloud', 18) + esc(cs.text) + '</div>' +
+        '<div class="row2" style="margin-top:12px"><button class="btn soft" data-act="cloud-sync">지금 맞추기</button><button class="btn" data-act="logout">로그아웃</button></div>';
+    } else {
+      h += '<div class="pos no" style="margin-top:0">' + icon('cloud', 18) + '로그인하지 않았습니다</div><button class="btn pri wide" style="margin-top:10px" data-act="show-login">로그인</button>';
     }
-    h += '</div>';
-    if (s.googleClientId) h += '<div class="group"><label class="switch"><span>바뀔 때마다 자동 저장<br><small class="hint" style="margin:0">연결돼 있는 동안 거래처를 고치면 바로 드라이브에 올립니다</small></span><input id="s-auto" type="checkbox"' + (s.driveAuto ? ' checked' : '') + '></label></div>';
-    h += '<p class="hint">로그인하면 거래처 · 견적 · 카카오 키 · 사무실 · 견적서 양식이 내 구글 드라이브에 저장되고, 다른 기기에서도 로그인만 하면 그대로 따라옵니다. 로그인은 약 1시간 유지되며, 그 뒤에는 위쪽 구름 단추를 한 번 눌러 다시 로그인합니다.</p>';
+    if (Cloud.configured() && !CONFIG_SB) h += '<button class="btn wide" style="margin-top:8px" data-act="copy-link">' + icon('copy', 18) + '다른 기기용 링크 복사</button><button class="btn plain danger wide" data-act="clear-sb">서버 연결 정보 지우기</button>';
+    h += '</div><p class="hint">한 번 로그인하면 계속 유지됩니다. 거래처 · 견적 · 카카오 키 · 사무실 · 견적서 양식이 서버에 저장되고, 다른 기기에서도 로그인만 하면 그대로 따라옵니다.</p>';
 
     h += '<div class="sec-h"><b>파일 백업</b></div><div class="group pad"><div class="row2"><button class="btn" data-act="export">내보내기</button><button class="btn" data-act="import">불러오기</button></div>' +
-      '<p class="hint" style="margin-bottom:0">거래처 ' + db.clients.length + '곳 · 방문 기록 ' + db.visits.length + '건. 드라이브를 쓰지 않을 때의 보관 방법입니다.</p></div>';
+      '<p class="hint" style="margin-bottom:0">거래처 ' + db.clients.length + '곳 · 방문 기록 ' + db.visits.length + '건. 만일을 대비한 별도 보관용입니다.</p></div>';
 
     var hasSample = db.clients.some(function (c) { return c.id.indexOf('sample-') === 0; });
     h += '<div class="sec-h"><b>기타</b></div><div class="group pad">' +
@@ -859,98 +862,117 @@
     toast('저장했습니다.'); renderSettings();
   }
 
-  /* ---------- 구글 드라이브 ---------- */
-  function driveStatus() {
-    var s = db.settings;
-    if (ui.driveBusy) return { ok: true, text: '드라이브에 저장하는 중…' };
-    if (ui.driveError) return { ok: false, text: ui.driveError };
-    if (!Drive.connected()) return { ok: false, text: '연결되지 않음 — 눌러서 연결' };
-    if (ui.drivePaused) return { ok: false, text: '자동 저장 잠시 멈춤 (드라이브 내용과 다름)' };
-    if (driveDirty()) return { ok: false, text: s.driveAuto ? '저장 대기 중' : '저장하지 않은 변경이 있음' };
-    return { ok: true, text: '드라이브에 저장됨' + (s.driveSyncedAt ? ' · ' + new Date(s.driveSyncedAt).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '') };
+  /* ---------- 로그인 · 기기 간 저장 ---------- */
+  function cloudDirty() { return db.updatedAt !== (db.settings.cloudLocalAt || ''); }
+  function pristine() { return !db.clients.length && !db.quotes.length; }
+  function cloudStatus() {
+    if (!Cloud.signedIn()) return { ok: false, text: '로그인하지 않음' };
+    if (ui.cloudBusy) return { ok: true, text: '서버에 저장하는 중…' };
+    if (ui.cloudError) return { ok: false, text: ui.cloudError };
+    if (ui.cloudPaused) return { ok: false, text: '자동 저장 잠시 멈춤 (서버 내용과 다름) — 눌러서 정리' };
+    if (cloudDirty()) return { ok: false, text: '저장 대기 중' };
+    var at = db.settings.cloudSyncedAt;
+    return { ok: true, text: '모든 기기에 저장됨' + (at ? ' · ' + new Date(at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '') };
   }
-  function driveDirty() { return db.updatedAt !== (db.settings.driveLocalAt || ''); }
-  function driveRefreshUi() { renderHeader(); if (ui.tab === 'settings' && !ui.sheet && document.activeElement && document.activeElement.tagName !== 'INPUT') renderSettings(); }
-  function scheduleDrive() {
-    var s = db.settings;
-    if (!s.googleClientId || !s.driveAuto || ui.drivePaused) return renderHeader();
-    clearTimeout(driveTimer);
-    driveTimer = setTimeout(function () { if (Drive.connected()) driveUpload(false); else renderHeader(); }, 2500);
+  function cloudRefreshUi() { renderHeader(); if (ui.tab === 'settings' && !ui.sheet && !(document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName))) renderSettings(); }
+  function scheduleCloud() {
+    if (!Cloud.signedIn() || ui.cloudPaused) return renderHeader();
+    clearTimeout(cloudTimer);
+    cloudTimer = setTimeout(function () { cloudPush(false); }, 2000);
     renderHeader();
   }
-  function driveUpload(manual) {
-    if (ui.driveBusy) { if (!manual) scheduleDrive(); return Promise.resolve(); }
-    ui.driveBusy = true; ui.driveError = ''; driveRefreshUi();
-    var localAt = db.updatedAt;
-    return Drive.save(JSON.stringify(db)).then(function (f) {
-      db.settings.driveSyncedAt = f.modifiedTime; db.settings.driveLocalAt = localAt;
-      Store.save(db); ui.drivePaused = false;
-      if (manual) toast('구글 드라이브에 저장했습니다.');
+  /** 이 기기 내용을 서버에 올린다. 그 사이 다른 기기가 바꿨으면 올리지 않고 cloudCheck 로 넘긴다 */
+  function cloudPush(manual) {
+    if (!Cloud.signedIn()) return Promise.resolve();
+    if (ui.cloudBusy) { if (!manual) scheduleCloud(); return Promise.resolve(); }
+    ui.cloudBusy = true; ui.cloudError = ''; cloudRefreshUi();
+    var localAt = db.updatedAt, conflict = false;
+    return Cloud.push(db, db.settings.cloudSyncedAt).then(function (at) {
+      db.settings.cloudSyncedAt = at; db.settings.cloudLocalAt = localAt;
+      Store.save(db); ui.cloudPaused = false;
+      if (manual) toast('서버에 저장했습니다.');
     }, function (e) {
-      ui.driveError = e.message; if (manual) toast(e.message);
+      if (e.conflict) conflict = true; else { ui.cloudError = e.message; if (manual) toast(e.message); }
     }).then(function () {
-      ui.driveBusy = false; driveRefreshUi();
-      if (db.updatedAt !== localAt && !ui.driveError) scheduleDrive();
+      ui.cloudBusy = false; cloudRefreshUi();
+      if (conflict) return cloudCheck(true);
+      if (db.updatedAt !== localAt && !ui.cloudError) scheduleCloud();
     });
   }
-  function driveApply(text, f) {
-    var raw;
-    try { raw = JSON.parse(text); } catch (e) { throw new Error('드라이브의 저장 파일을 읽을 수 없습니다.'); }
-    var next = Store.normalize(raw), cur = db.settings;
-    ['kakaoKey', 'kakaoRestKey'].forEach(function (k) { if (!next.settings[k]) next.settings[k] = cur[k]; });
-    next.settings.googleClientId = cur.googleClientId; next.settings.driveAuto = cur.driveAuto;
-    next.settings.driveSyncedAt = f.modifiedTime; next.settings.driveLocalAt = next.updatedAt;
-    var reload = next.settings.kakaoKey !== cur.kakaoKey;
-    db = next; Store.save(db); ui.drivePaused = false; ui.driveError = '';
+  function cloudApply(row) {
+    var next = Store.normalize(row.data), cur = db.settings;
+    next.settings.supabaseUrl = cur.supabaseUrl; next.settings.supabaseKey = cur.supabaseKey;
+    next.settings.cloudSyncedAt = row.updated_at; next.settings.cloudLocalAt = next.updatedAt;
+    var keyChanged = next.settings.kakaoKey !== cur.kakaoKey;
+    var editing = ui.sheet && (ui.sheet.mode === 'edit' || ui.sheet.mode === 'quote');
+    db = next; Store.save(db); ui.cloudPaused = false; ui.cloudError = '';
     roadCache = {}; roadFail = {};
-    if (reload) {
-      // 이 기기에서 카카오맵을 아직 안 켰으면 새로 열 필요 없이 바로 연결. 이미 다른 키로 켜져 있으면 양식까지 받은 뒤 새로 연다
+    if (keyChanged && db.settings.kakaoKey) {
+      // 이 기기에서 카카오맵을 아직 안 켰으면 바로 연결. 이미 다른 키로 켜져 있으면 화면을 새로 연다
       if (KakaoApi.state.status !== 'none') return syncTemplate().then(function () { location.reload(); });
       KakaoApi.naviPreload(db.settings.kakaoKey).catch(function () { });
       KakaoApi.load(db.settings.kakaoKey).then(function () { if (!ui.sheet) render(); }, function () { if (!ui.sheet) render(); });
     }
-    render(); toast('내 드라이브의 내용으로 맞췄습니다. 거래처 ' + db.clients.length + '곳');
+    if (ui.sheet && !editing) { if (ui.sheet.mode === 'view' && !byId(ui.sheet.id)) { ui.sheet = null; $('#sheet').hidden = true; document.body.classList.remove('lock'); } else renderSheet(); }
+    if (!ui.sheet) render(); else { renderNav(); renderHeader(); }
+    toast('다른 기기에서 바뀐 내용으로 맞췄습니다. 거래처 ' + db.clients.length + '곳');
   }
-  /** 연결 직후: 드라이브에 다른 저장본이 있으면 어느 쪽을 쓸지 묻는다 */
-  function driveAfterConnect() {
-    return Drive.find().then(function (f) {
-      if (!f) return driveUpload(true);
-      if (f.modifiedTime === db.settings.driveSyncedAt) { if (driveDirty()) return driveUpload(false); return; }
-      return Drive.download(f.id).then(function (text) {
-        var remote; try { remote = Store.normalize(JSON.parse(text)); } catch (e) { remote = null; }
-        if (!remote) return driveUpload(true);
-        var when = new Date(f.modifiedTime).toLocaleString('ko-KR');
-        // 이 기기에 올리지 않은 변경이 없으면(처음 로그인 포함) 묻지 않고 드라이브 내용으로 맞춘다
-        if ((!db.clients.length && !db.quotes.length) || !driveDirty()) return driveApply(text, f);
-        if (confirm('구글 드라이브의 내용이 이 휴대폰과 다릅니다.\n\n· 드라이브: 거래처 ' + remote.clients.length + '곳 (' + when + ' 저장)\n· 이 휴대폰: 거래처 ' + db.clients.length + '곳\n\n[확인] 드라이브 내용을 가져옵니다 (이 휴대폰 내용은 바뀝니다)\n[취소] 가져오지 않습니다')) return driveApply(text, f);
-        if (confirm('그러면 이 휴대폰의 내용으로 드라이브를 덮어쓸까요?\n\n[확인] 드라이브를 이 휴대폰 내용으로 바꿉니다\n[취소] 아무것도 바꾸지 않습니다 (자동 저장을 잠시 멈춥니다)')) return driveUpload(true);
-        ui.drivePaused = true;
+  /**
+   * 서버와 이 기기를 맞춘다. (앱을 열 때, 다시 화면으로 돌아올 때, 로그인 직후)
+   * - 서버만 바뀜 → 묻지 않고 가져옴   - 이 기기만 바뀜 → 올림   - 둘 다 바뀜 → 어느 쪽을 쓸지 물음
+   */
+  function cloudCheck(force) {
+    if (!Cloud.signedIn() || ui.cloudBusy) return Promise.resolve();
+    if (!force && Date.now() - cloudCheckedAt < 5000) return Promise.resolve();
+    cloudCheckedAt = Date.now();
+    return Cloud.stamp().then(function (at) {
+      ui.cloudError = '';
+      if (!at) { db.settings.cloudSyncedAt = ''; return cloudPush(false); }           // 서버에 아직 아무것도 없음
+      if (at === db.settings.cloudSyncedAt) { if (cloudDirty() && !ui.cloudPaused) return cloudPush(false); return; }
+      return Cloud.pull().then(function (row) {
+        if (!row) return;
+        if (pristine() || !cloudDirty()) return cloudApply(row);
+        var remote = Store.normalize(row.data), when = new Date(row.updated_at).toLocaleString('ko-KR');
+        if (confirm('다른 기기에서 저장한 내용과 이 기기의 내용이 서로 다릅니다.\n\n· 다른 기기: 거래처 ' + remote.clients.length + '곳, 견적 ' + remote.quotes.length + '건 (' + when + ' 저장)\n· 이 기기: 거래처 ' + db.clients.length + '곳, 견적 ' + db.quotes.length + '건\n\n[확인] 다른 기기의 내용을 가져옵니다 (이 기기에서 방금 고친 내용은 사라집니다)\n[취소] 가져오지 않습니다')) return cloudApply(row);
+        if (confirm('그러면 이 기기의 내용으로 서버를 덮어쓸까요?\n\n[확인] 이 기기의 내용을 모든 기기에 적용합니다\n[취소] 아무것도 바꾸지 않습니다 (자동 저장을 잠시 멈춥니다)')) {
+          db.settings.cloudSyncedAt = row.updated_at; return cloudPush(true);
+        }
+        ui.cloudPaused = true;
       });
-    });
+    }).catch(function (e) { ui.cloudError = e.message; }).then(syncTemplate).then(cloudRefreshUi);
   }
-  function driveConnect() {
-    var cid = db.settings.googleClientId;
-    if (!cid) return toast('설정에서 구글 클라이언트 ID를 먼저 넣어 주세요.');
-    ui.driveError = '';
-    Drive.connect(cid).then(driveAfterConnect).then(syncTemplate).then(function () { $('#login').hidden = true; }).catch(function (e) { ui.driveError = /한 번 더/.test(e.message) ? '' : e.message; toast(e.message); }).then(driveRefreshUi);
+  /** 견적서 양식도 서버에 함께 둔다 (이 기기에 없으면 받아 오고, 이 기기 것이 새것이면 올림) */
+  function syncTemplate() {
+    if (!Cloud.signedIn()) return Promise.resolve();
+    var flag = 'mimifresh.tplSynced', synced = false;
+    try { synced = localStorage.getItem(flag) === '1'; } catch (e) { /* 무시 */ }
+    var mark = function () { try { localStorage.setItem(flag, '1'); } catch (e) { /* 무시 */ } };
+    var p;
+    if (Quote.hasTemplate() && !synced) p = Cloud.pushTemplate(Quote.getTemplateB64()).then(function (ok) { if (ok) mark(); });
+    else if (!Quote.hasTemplate()) p = Cloud.pullTemplate().then(function (b64) { if (b64) { Quote.setTemplateB64(b64); mark(); if (ui.tab === 'docs' && !ui.sheet) render(); } });
+    else p = Promise.resolve();
+    return p.catch(function () { /* 양식은 다음에 다시 시도 */ });
   }
-  /** 견적서 양식도 드라이브에 함께 둔다 (이 기기에 없으면 받아 오고, 드라이브에 없으면 올림) */
-  function syncTemplate(forceUpload) {
-    if (!Drive.connected()) return Promise.resolve();
-    return Drive.find(Drive.TEMPLATE_NAME).then(function (f) {
-      if (Quote.hasTemplate() && (forceUpload === true || !f)) return Drive.saveFile(Drive.TEMPLATE_NAME, XLSX_TYPE, Quote.getTemplate());
-      if (!Quote.hasTemplate() && f) return Drive.download(f.id, true).then(function (bytes) { Quote.setTemplate(bytes); if (ui.tab === 'docs' && !ui.sheet) render(); });
-    }).catch(function () { /* 양식은 다음 로그인 때 다시 시도 */ });
+  function showLogin(msg) { $('#login').hidden = false; $('#login-msg').textContent = msg || ''; }
+  function afterSignIn() {
+    $('#login').hidden = true; $('#l-pass').value = '';
+    cloudRefreshUi();
+    return cloudCheck(true);
   }
-  function driveLoad() {
-    Drive.find().then(function (f) {
-      if (!f) return toast('드라이브에 저장된 파일이 아직 없습니다.');
-      return Drive.download(f.id).then(function (text) {
-        var remote = Store.normalize(JSON.parse(text));
-        if (!confirm('드라이브의 내용(거래처 ' + remote.clients.length + '곳, ' + new Date(f.modifiedTime).toLocaleString('ko-KR') + ' 저장)을 가져옵니다.\n지금 이 휴대폰의 내용(거래처 ' + db.clients.length + '곳)은 바뀝니다. 계속할까요?')) return;
-        driveApply(text, f);
-      });
-    }).catch(function (e) { toast(e.message); });
+  function login(isSignUp) {
+    var mail = $('#l-email').value.trim(), pass = $('#l-pass').value, m = $('#login-msg');
+    if (!mail || !pass) { m.textContent = '이메일과 비밀번호를 입력해 주세요.'; return; }
+    if (isSignUp && pass.length < 8) { m.textContent = '비밀번호는 8자 이상으로 만들어 주세요.'; return; }
+    m.textContent = isSignUp ? '계정을 만드는 중…' : '로그인하는 중…';
+    (isSignUp ? Cloud.signUp(mail, pass) : Cloud.signIn(mail, pass)).then(function (r) {
+      if (isSignUp && r.needConfirm) { m.textContent = '가입 확인 메일이 필요한 상태입니다. Supabase에서 "Confirm email"을 끈 뒤 다시 로그인해 주세요. (README 4번)'; return; }
+      m.textContent = '';
+      return afterSignIn();
+    }).catch(function (e) { m.textContent = e.message; });
+  }
+  function logout() {
+    if (cloudDirty() && !confirm('아직 서버에 올라가지 않은 변경이 있습니다. 그래도 로그아웃할까요?\n(이 기기에는 내용이 그대로 남습니다)')) return;
+    Cloud.signOut().then(function () { ui.cloudError = ''; ui.cloudPaused = false; render(); toast('로그아웃했습니다. 이 기기의 내용은 그대로 있습니다.'); });
   }
 
   /* ---------- 파일 백업 · 샘플 ---------- */
@@ -971,8 +993,9 @@
       if (!raw || !Array.isArray(raw.clients)) return toast('이 앱의 백업 파일이 아닙니다.');
       var next = Store.normalize(raw);
       if (!confirm('백업 파일의 거래처 ' + next.clients.length + '곳, 방문 기록 ' + next.visits.length + '건으로 바꿉니다.\n지금 있는 데이터(거래처 ' + db.clients.length + '곳)는 지워집니다. 계속할까요?')) return;
-      ['kakaoKey', 'kakaoRestKey', 'googleClientId'].forEach(function (k) { if (!next.settings[k]) next.settings[k] = db.settings[k]; });
-      next.settings.driveSyncedAt = db.settings.driveSyncedAt; next.settings.driveLocalAt = '';
+      ['kakaoKey', 'kakaoRestKey'].forEach(function (k) { if (!next.settings[k]) next.settings[k] = db.settings[k]; });
+      next.settings.supabaseUrl = db.settings.supabaseUrl; next.settings.supabaseKey = db.settings.supabaseKey;
+      next.settings.cloudSyncedAt = db.settings.cloudSyncedAt; next.settings.cloudLocalAt = '';
       next.updatedAt = new Date().toISOString();
       db = next; Store.save(db);
       location.reload();
@@ -1059,18 +1082,30 @@
     },
     'go-settings': function () { switchTab('settings'); },
     'save-key': saveKeys,
-    'save-gid': function () {
-      db.settings.googleClientId = $('#s-gid').value.trim(); Drive.disconnect(); ui.driveError = ''; save();
-      if (db.settings.googleClientId) Drive.preload(db.settings.googleClientId).catch(function (e) { ui.driveError = e.message; }).then(driveRefreshUi);
-      renderHeader(); renderSettings(); toast('저장했습니다.');
+    'save-sb': function () {
+      var url = $('#s-sburl').value.trim().replace(/\/+$/, ''), key = $('#s-sbkey').value.trim();
+      if (!/^https:\/\/.+/.test(url) || !key) return toast('Supabase 주소(https://…)와 공개 키를 모두 넣어 주세요.');
+      if (/^sb_secret_|service_role/.test(key)) return toast('이것은 비밀 키입니다. 넣으면 안 됩니다. Publishable(공개) 키를 넣어 주세요.');
+      db.settings.supabaseUrl = url; db.settings.supabaseKey = key; Store.save(db);
+      location.reload();
     },
-    'drive-connect': driveConnect,
-    'login': driveConnect,
+    'clear-sb': function () {
+      if (!confirm('이 기기에서 서버 연결 정보를 지울까요? (로그아웃되며, 이 기기의 내용은 남습니다)')) return;
+      var done = function () { db.settings.supabaseUrl = ''; db.settings.supabaseKey = ''; db.settings.cloudSyncedAt = ''; db.settings.cloudLocalAt = ''; Store.save(db); location.reload(); };
+      Cloud.signOut().then(done, done);
+    },
+    'login': function () { login(false); },
+    'signup': function () { login(true); },
+    'show-login': function () { showLogin(''); },
+    'logout': logout,
     'login-skip': function () { try { localStorage.setItem('mimifresh.skipLogin', '1'); } catch (e) { /* 무시 */ } $('#login').hidden = true; },
-    'copy-link': function () { copyText(location.origin + location.pathname + '#gid=' + encodeURIComponent(db.settings.googleClientId), '기기 추가 링크를'); },
-    'drive-tap': function () { if (Drive.connected() && !ui.driveError) { if (driveDirty() && !ui.drivePaused) driveUpload(true); else toast(driveStatus().text); } else driveConnect(); },
-    'drive-save': function () { driveUpload(true); },
-    'drive-load': driveLoad,
+    'copy-link': function () { copyText(location.origin + location.pathname + '#sb=' + encodeURIComponent(db.settings.supabaseUrl + '|' + db.settings.supabaseKey), '기기 추가 링크를'); },
+    'cloud-tap': function () {
+      if (!Cloud.signedIn()) return showLogin('');
+      ui.cloudPaused = false;
+      cloudCheck(true).then(function () { toast(cloudStatus().text); });
+    },
+    'cloud-sync': function () { ui.cloudPaused = false; cloudCheck(true).then(function () { toast(cloudStatus().text); }); },
     'export': exportBackup,
     'import': function () { $('#import-file').value = ''; $('#import-file').click(); },
     'sample': addSample,
@@ -1101,7 +1136,6 @@
   });
   document.addEventListener('change', function (e) {
     if (e.target.id === 'f-status') { ui.fStatus = e.target.value; renderClients(); }
-    else if (e.target.id === 's-auto') { db.settings.driveAuto = e.target.checked; save(); }
     else if (e.target.id === 'import-file' && e.target.files[0]) importBackup(e.target.files[0]);
     else if (e.target.id === 'tpl-file' && e.target.files[0]) loadTemplate(e.target.files[0]);
     else if (e.target.dataset && e.target.dataset.k === 'service') { syncQuote(); renderSheet(); }
@@ -1115,10 +1149,20 @@
   if (db.settings.kakaoKey) {
     KakaoApi.load(db.settings.kakaoKey).then(function () { if (!ui.sheet && ui.tab !== 'clients') render(); }, function () { if (ui.tab === 'settings') render(); });
   }
-  // 처음 여는 기기(내용이 비어 있음)면 로그인 화면부터 보여 준다
+  // 로그인: 저장된 로그인이 있으면 이어서 쓰고, 없으면 로그인 화면을 보여 준다
   (function () {
-    var skipped = false; try { skipped = !!localStorage.getItem('mimifresh.skipLogin'); } catch (e) { /* 무시 */ }
-    if (db.settings.googleClientId && !skipped && !db.clients.length && !db.quotes.length && !db.settings.kakaoKey) $('#login').hidden = false;
+    var st = db.settings;
+    $('#login-form').addEventListener('submit', function (e) { e.preventDefault(); });
+    try { if (!Cloud.init(st.supabaseUrl, st.supabaseKey)) return; }
+    catch (e) { ui.cloudError = e.message; return renderHeader(); }
+    Cloud.onUserChange(function () { cloudRefreshUi(); });
+    Cloud.restore().then(function (u) {
+      var skipped = false; try { skipped = !!localStorage.getItem('mimifresh.skipLogin'); } catch (e) { /* 무시 */ }
+      if (u) cloudCheck(true); else if (!skipped) showLogin('');
+      cloudRefreshUi();
+    });
+    // 다른 기기에서 고친 내용을 놓치지 않도록, 화면으로 돌아올 때마다 서버와 맞춘다
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) cloudCheck(false); });
+    window.addEventListener('online', function () { cloudCheck(true); });
   })();
-  if (db.settings.googleClientId) Drive.preload(db.settings.googleClientId).catch(function (e) { ui.driveError = e.message; renderHeader(); });
 })();

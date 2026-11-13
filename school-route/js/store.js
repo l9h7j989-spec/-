@@ -6,7 +6,7 @@
  *   version: 2,
  *   updatedAt: 마지막으로 내용을 바꾼 시각,
  *   settings: { kakaoKey, kakaoRestKey, office:{name,address,lat,lng}|null,
- *               googleClientId, driveAuto, driveSyncedAt, driveLocalAt },
+ *               supabaseUrl, supabaseKey, cloudSyncedAt, cloudLocalAt },
  *   clients: [ { id, name, type, address, lat, lng, contactName, phone, memo,
  *                status, placeId, createdAt, updatedAt } ],
  *   visits:  [ { id, clientId, date:'YYYY-MM-DD', memo, createdAt } ],
@@ -37,7 +37,7 @@
   function empty() {
     return {
       version: 2, updatedAt: '',
-      settings: { kakaoKey: '', kakaoRestKey: '', office: null, googleClientId: '', driveAuto: true, driveSyncedAt: '', driveLocalAt: '' },
+      settings: { kakaoKey: '', kakaoRestKey: '', office: null, supabaseUrl: '', supabaseKey: '', cloudSyncedAt: '', cloudLocalAt: '' },
       clients: [], visits: [], today: emptyToday(), quotes: []
     };
   }
@@ -50,10 +50,10 @@
     var s = raw.settings || {};
     db.settings.kakaoKey = str(s.kakaoKey).trim();
     db.settings.kakaoRestKey = str(s.kakaoRestKey).trim();
-    db.settings.googleClientId = str(s.googleClientId).trim();
-    db.settings.driveAuto = s.driveAuto !== false;
-    db.settings.driveSyncedAt = str(s.driveSyncedAt);
-    db.settings.driveLocalAt = str(s.driveLocalAt);
+    db.settings.supabaseUrl = str(s.supabaseUrl).trim();
+    db.settings.supabaseKey = str(s.supabaseKey).trim();
+    db.settings.cloudSyncedAt = str(s.cloudSyncedAt);
+    db.settings.cloudLocalAt = str(s.cloudLocalAt);
     if (s.office && num(s.office.lat) != null && num(s.office.lng) != null) {
       db.settings.office = { name: str(s.office.name), address: str(s.office.address), lat: num(s.office.lat), lng: num(s.office.lng) };
     }

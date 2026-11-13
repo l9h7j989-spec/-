@@ -217,3 +217,8 @@ main { position: relative; z-index: 1; }
 .login-in h2 { margin: 0; font-size: 1.7rem; font-weight: 800; letter-spacing: -.03em; }
 .login-in p { color: var(--sub); margin: 10px 0 22px; }
 .login-in .btn.plain { margin-top: 6px; }
+
+.login-in input { margin-bottom: 8px; background: #fff; border-color: var(--line); }
+.login-in .btn { margin-top: 6px; }
+input[type=email], input[type=password] { width: 100%; min-height: 50px; padding: 11px 14px; border: 1px solid transparent; border-radius: 12px; background: var(--fill); outline: none; -webkit-appearance: none; appearance: none; }
+#login { overflow-y: auto; }

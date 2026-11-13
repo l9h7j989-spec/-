@@ -26,6 +26,8 @@
     for (var i = 0; i < need.length; i++) if (xml.indexOf('<c r="' + need[i] + '"') < 0) throw new Error('견적서 양식과 칸 위치가 다릅니다. (' + need[i] + ' 칸 없음) 빈 양식 원본을 올려 주세요.');
     try { localStorage.setItem(TPL_KEY, bytesToB64(bytes)); } catch (e) { throw new Error('양식을 저장할 공간이 부족합니다.'); }
   }
+  function getTemplateB64() { try { return localStorage.getItem(TPL_KEY) || ''; } catch (e) { return ''; } }
+  function setTemplateB64(b64) { setTemplate(b64ToBytes(b64)); }
   function clearTemplate() { try { localStorage.removeItem(TPL_KEY); } catch (e) { /* 무시 */ } }
 
   /** 금액을 한글로 (엑셀 NUMBERSTRING(값,1) 과 같은 표기: 2640000 → 이백육십사만) */
@@ -122,5 +124,5 @@
     return fflate.zipSync(files, { level: 6 });
   }
 
-  root.Quote = { MAX_ITEMS: MAX_ITEMS, hasTemplate: hasTemplate, getTemplate: getTemplate, setTemplate: setTemplate, clearTemplate: clearTemplate, koreanNumber: koreanNumber, lineAmount: lineAmount, total: total, build: build };
+  root.Quote = { MAX_ITEMS: MAX_ITEMS, hasTemplate: hasTemplate, getTemplate: getTemplate, setTemplate: setTemplate, getTemplateB64: getTemplateB64, setTemplateB64: setTemplateB64, clearTemplate: clearTemplate, koreanNumber: koreanNumber, lineAmount: lineAmount, total: total, build: build };
 })(window);

@@ -28,7 +28,7 @@
 </header>
 
 <main>
-  <button id="syncbar" data-act="drive-tap" hidden></button>
+  <button id="syncbar" data-act="cloud-tap" hidden></button>
   <section id="tab-clients" class="tab"></section>
   <section id="tab-sales" class="tab" hidden>
     <div id="sales-top"></div>
@@ -48,14 +48,17 @@
 </nav>
 
 <div id="login" hidden>
-  <div class="login-in">
+  <form class="login-in" id="login-form" autocomplete="on">
     <img src="logo.png" alt="미미 프레쉬 로고">
     <h2>미미 프레쉬</h2>
-    <p>로그인하면 거래처, 견적서, 설정이<br>이 기기로 모두 따라옵니다.</p>
-    <button class="btn pri wide big" data-act="login">Google로 로그인</button>
-    <button class="btn plain wide" data-act="login-skip">로그인 없이 시작</button>
-    <p class="hint" id="login-msg"></p>
-  </div>
+    <p>한 번 로그인하면 계속 유지되고,<br>거래처·견적서·설정이 따라옵니다.</p>
+    <input id="l-email" type="email" placeholder="이메일" autocomplete="username" autocapitalize="off" spellcheck="false" required>
+    <input id="l-pass" type="password" placeholder="비밀번호" autocomplete="current-password" required>
+    <button class="btn pri wide big" type="submit" data-act="login">로그인</button>
+    <button class="btn soft wide" type="button" data-act="signup">처음이면 계정 만들기</button>
+    <button class="btn plain wide" type="button" data-act="login-skip">로그인 없이 시작</button>
+    <p class="hint" id="login-msg" role="alert"></p>
+  </form>
 </div>
 <div id="sheet" hidden></div>
 <div id="toast" role="status" hidden></div>
@@ -66,7 +69,8 @@
 <script src="js/route.js"></script>
 <script src="js/store.js"></script>
 <script src="js/kakao.js"></script>
-<script src="js/drive.js"></script>
+<script src="js/vendor/supabase.js"></script>
+<script src="js/cloud.js"></script>
 <script src="js/vendor/fflate.js"></script>
 <script src="js/quote.js"></script>
 <script src="js/app.js"></script>

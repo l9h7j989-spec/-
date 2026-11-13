@@ -1,10 +1,14 @@
 /*
  * config.js — 모든 기기에서 똑같이 쓰는 값
  *
- * GOOGLE_CLIENT_ID 에 구글 클라이언트 ID를 넣어 두면, 어느 기기에서든
- * 사이트를 열고 "Google로 로그인"만 누르면 거래처·견적·카카오 키·사무실·견적서 양식이 모두 따라옵니다.
- * (클라이언트 ID는 비밀번호가 아닙니다. 등록한 사이트 주소에서만 동작하므로 공개돼도 괜찮습니다)
+ * 아래 두 칸에 Supabase 프로젝트의 주소와 공개 키를 넣어 두면, 어느 기기에서든
+ * 사이트를 열고 이메일·비밀번호로 한 번 로그인하면 계속 로그인된 채로
+ * 거래처·견적·카카오 키·사무실·견적서 양식이 모두 따라옵니다.
+ *
+ * 공개 키(anon 또는 publishable)는 브라우저에 넣어도 되는 키입니다.
+ * service_role / secret 키는 절대 넣지 마세요.
  */
 window.AppConfig = {
-  GOOGLE_CLIENT_ID: ''
+  SUPABASE_URL: '',       // 예: https://abcdefgh.supabase.co
+  SUPABASE_ANON_KEY: ''   // 공개 키 (anon 또는 sb_publishable_...)
 };
