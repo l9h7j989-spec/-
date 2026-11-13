@@ -225,7 +225,7 @@
     showSheet();
   }
   function showSheet() { renderSheet(); $('#sheet').hidden = false; $('#sheet').scrollTop = 0; document.body.classList.add('lock'); }
-  function renderSheet() { if (ui.sheet) $('#sheet').innerHTML = ui.sheet.mode === 'view' ? viewHtml() : editHtml(); }
+  function renderSheet() { if (ui.sheet) $('#sheet').innerHTML = ui.sheet.mode === 'view' ? viewHtml() : ui.sheet.mode === 'quote' ? quoteHtml() : editHtml(); }
   function kv(k, v, extra) { return '<div class="kv"><span class="k">' + k + '</span><span class="v' + (v ? '' : ' none') + '">' + (v || '없음') + '</span>' + (extra || '') + '</div>'; }
   function viewHtml() {
     var c = byId(ui.sheet.id), vs = visitsOf(c.id), pos = hasPos(c);
@@ -243,6 +243,7 @@
       kv('주소', esc(c.address), c.address ? '<button class="round" data-act="copy" data-v="' + esc(c.address) + '" aria-label="주소 복사">' + icon('copy', 20) + '</button>' : '') +
       kv('메모', esc(c.memo)) + '</div>';
     if (!pos) h += '<div class="notice">위치(좌표)가 없어 거리 계산과 영업 동선에 넣을 수 없습니다. <b>편집</b>에서 이름을 검색하거나 주소로 위치를 찾아 주세요.</div>';
+    h += '<button class="btn soft wide" style="margin-bottom:4px" data-act="quote-new" data-id="' + c.id + '">' + icon('doc', 20) + '이 거래처로 견적서 작성</button>';
     h += '<div class="sec-h"><b>영업 상태</b></div>' + seg('quick-status', STATUSES, c.status, 'brand-on');
     h += '<div class="sec-h"><span><b>방문 기록</b><span class="n">' + vs.length + '</span></span></div><div class="group pad">' +
       '<input id="v-date" type="date" value="' + Store.todayStr() + '" aria-label="방문 날짜"><textarea id="v-memo" placeholder="방문 메모 (예: 행정실장 면담, 견적 요청 받음)" style="margin-top:8px"></textarea>' +
@@ -283,6 +284,10 @@
   }
   function closeSheet(force) {
     var s = ui.sheet;
+    if (s && s.mode === 'quote') {
+      syncQuote();
+      if (!force && JSON.stringify(s.draft) !== s.original && !confirm('저장하지 않은 내용이 있습니다. 그냥 닫을까요?')) return;
+    }
     if (s && s.mode === 'edit') {
       syncDraft();
       if (!force && JSON.stringify(s.draft) !== s.original && !confirm('저장하지 않은 내용이 있습니다. 그냥 닫을까요?')) return;
@@ -320,7 +325,7 @@
     if (!confirm('"' + c.name + '" 거래처를 삭제할까요?\n방문 기록도 함께 지워집니다.')) return;
     db.clients = db.clients.filter(function (x) { return x.id !== c.id; });
     db.visits = db.visits.filter(function (v) { return v.clientId !== c.id; });
-    db.quotes = db.quotes.filter(function (q) { return q.clientId !== c.id; });
+    db.quotes.forEach(function (q) { if (q.clientId === c.id) q.clientId = ''; });
     db.today.stops.forEach(function (p) { if (p.clientId === c.id) p.clientId = ''; });
     save(); toast('삭제했습니다.');
     ui.sheet = null; $('#sheet').hidden = true; $('#sheet').innerHTML = ''; document.body.classList.remove('lock'); render();
@@ -367,6 +372,7 @@
       return { clientId: c.id, name: c.name, address: c.address, lat: c.lat, lng: c.lng, phone: c.phone, placeId: c.placeId };
     }) : [];
     ui.sg = { kind: kind, q: q, local: local, places: null, note: '' };
+    if (kind === 'quote') { ui.sg.local = matchClients(q).slice(0, 6).map(function (c) { return { clientId: c.id, name: c.name, address: c.address }; }); ui.sg.places = []; ui.sg.note = '거래처에 없는 이름입니다. 쓴 그대로 견적서에 들어갑니다.'; return renderSg(kind); }
     if (KakaoApi.state.status !== 'ready') {
       ui.sg.places = [];
       ui.sg.note = KakaoApi.state.status === 'loading' ? '카카오맵 연결 중입니다…' : '설정에서 카카오 키를 넣으면 등록하지 않은 곳도 이름으로 찾을 수 있습니다.';
@@ -398,7 +404,7 @@
     var items = sgItems(), office = db.settings.office, h = '';
     g.items = items;
     h += items.map(function (r, i) {
-      var km = office && kind !== 'office' ? Route.haversineKm(office, r) : null;
+      var km = office && kind !== 'office' && hasPos(r) ? Route.haversineKm(office, r) : null;
       return '<div class="row"><button class="row-main" data-act="sg-pick" data-i="' + i + '">' +
         '<span class="row-txt"><span class="row-t">' + esc(r.name) + '</span>' + (r.address && r.address !== r.name ? '<span class="row-a">' + esc(r.address) + '</span>' : '') + '</span></button>' +
         (r.clientId ? '<span class="tag">내 거래처</span>' : '') + (km != null ? '<span class="km">' + fmtKm(km) + '</span>' : '') + '</div>';
@@ -413,6 +419,7 @@
     var r = g.items[i];
     if (g.kind === 'sales') { addStop(r); }
     else if (g.kind === 'client') applyPlace(r);
+    else if (g.kind === 'quote') { syncQuote(); ui.sheet.draft.clientId = r.clientId; ui.sheet.draft.clientName = r.name; ui.sg = null; renderSheet(); }
     else if (g.kind === 'office') {
       db.settings.office = { name: r.name, address: r.address, lat: r.lat, lng: r.lng };
       db.today.recommended = null; ui.sg = null; save(); renderSettings();
@@ -522,7 +529,8 @@
           '<div class="stop-top"><button class="handle" aria-label="끌어서 순서 바꾸기">' + icon('grip', 20) + '</button><span class="no">' + (i + 1) + '</span>' +
           '<span class="nm"><b>' + esc(s.name) + '</b><small>' + esc(s.address) + '</small></span>' +
           '<span class="mv"><button data-act="up" data-id="' + s.id + '" aria-label="위로"' + (i === 0 ? ' disabled' : '') + '>' + icon('up', 16) + '</button><button data-act="down" data-id="' + s.id + '" aria-label="아래로"' + (i === stops.length - 1 ? ' disabled' : '') + '>' + icon('down', 16) + '</button></span></div>' +
-          '<div class="acts"><a class="pill" target="_blank" rel="noopener" href="' + KakaoApi.navLink(s) + '">' + icon('nav', 20) + '길안내</a>' +
+          '<div class="acts"><button class="pill" data-act="navi" data-id="' + s.id + '">' + icon('car', 20) + '카카오내비</button>' +
+          '<a class="pill" target="_blank" rel="noopener" href="' + KakaoApi.navLink(s) + '">' + icon('nav', 20) + '카카오맵</a>' +
           '<button class="pill" data-act="copy" data-v="' + esc(s.address) + '">' + icon('copy', 20) + '주소 복사</button>' +
           (s.phone ? '<a class="pill" href="' + telHref(s.phone) + '">' + icon('phone', 20) + '전화</a>' : '') +
           '<button class="pill ' + (dn ? 'on' : 'ok') + '" data-act="visit-toggle" data-id="' + s.id + '">' + icon('check', 20) + (dn ? '완료됨' : '방문 완료') + '</button></div>' +
@@ -656,12 +664,136 @@
     body.addEventListener('pointercancel', end);
   }
 
-  /* ================= 서류 ================= */
+  /* ================= 서류 (견적서) ================= */
+  function won(n) { return Math.round(n).toLocaleString('ko-KR') + '원'; }
+  function blankItem() { return { name: '', spec: '', qty: 1, price: null, service: false }; }
+  function quoteById(id) { return db.quotes.find(function (q) { return q.id === id; }); }
   function renderDocs() {
-    var quoted = db.clients.filter(function (c) { return c.status === '견적 발송'; }).length;
-    $('#tab-docs').innerHTML = '<div class="empty"><div class="em-ic">' + icon('doc', 34) + '</div><b>견적서 — 준비 중</b>양식을 받으면 이곳에서 거래처를 고르고<br>바로 견적서를 만들어 보낼 수 있게 됩니다.<br>거래처 이름 · 주소 · 담당자 · 연락처는 자동으로 채워집니다.</div>' +
-      '<div class="group">' + kv('거래처', db.clients.length + '곳') + kv('견적 발송', quoted + '곳') + kv('작성한 견적', db.quotes.length + '건') + '</div>' +
-      '<button class="btn wide big" disabled>' + icon('plus', 22) + '견적서 만들기 (준비 중)</button>';
+    var has = Quote.hasTemplate(), h = '';
+    h += '<div class="group pad">' + (has ?
+      '<div class="pos yes" style="margin-top:0">' + icon('check', 18) + '견적서 양식이 등록되어 있습니다</div><p class="hint" style="margin:6px 0 10px">양식 파일은 이 휴대폰 안에만 저장됩니다.</p><button class="btn small" data-act="tpl-pick">양식 파일 바꾸기</button>' :
+      '<div class="pos no" style="margin-top:0">' + icon('doc', 18) + '견적서 양식을 먼저 올려 주세요</div><p class="hint" style="margin:6px 0 10px">내용이 비어 있는 <b>견적서 양식 엑셀 파일</b>을 한 번만 올리면, 로고·도장·서식이 그대로인 견적서를 만들 수 있습니다. 파일은 이 휴대폰 안에만 저장됩니다.</p><button class="btn pri wide" data-act="tpl-pick">' + icon('plus', 20) + '양식 파일 올리기</button>') + '</div>';
+    h += '<button class="btn pri wide big" data-act="quote-new">' + icon('plus', 22) + '새 견적서</button>';
+    var list = db.quotes.slice().sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : (a.createdAt < b.createdAt ? 1 : -1); });
+    if (!list.length) h += '<div class="empty"><div class="em-ic">' + icon('doc', 34) + '</div><b>작성한 견적서가 없습니다</b>거래처를 고르고 품목과 금액만 넣으면<br>원본 양식 그대로 엑셀 파일이 만들어집니다.</div>';
+    else h += '<div class="sec-h"><span><b>견적서</b><span class="n">' + list.length + '</span></span></div><div class="group">' + list.map(function (q) {
+      return '<div class="row"><button class="row-main" data-act="quote-open" data-id="' + q.id + '"><span class="ava t' + (q.sent ? 0 : 4) + '">' + icon('doc', 20) + '</span>' +
+        '<span class="row-txt"><span class="row-t">' + esc(q.clientName) + '</span><span class="row-s">' + q.date + ' · ' + won(Quote.total(q)) + (q.sent ? ' · <span class="badge st-3">발송</span>' : '') + '</span>' +
+        (q.title ? '<span class="row-a">' + esc(q.title) + '</span>' : '') + '</span></button>' + icon('chev', 18, 'chev') + '</div>';
+    }).join('') + '</div>';
+    $('#tab-docs').innerHTML = h;
+  }
+  function openQuote(id, client, from) {
+    var q = id ? quoteById(id) : null;
+    var d = q ? JSON.parse(JSON.stringify(q)) : Object.assign({ id: Store.uid(), clientId: client ? client.id : '', clientName: client ? client.name : '', date: Store.todayStr(), title: '', vat: '포함', items: [blankItem()], desc: '', note: '', sent: false }, from || {});
+    if (!d.items.length) d.items.push(blankItem());
+    ui.sheet = { mode: 'quote', id: d.id, isNew: !q, draft: d, original: from ? '' : JSON.stringify(d) };
+    ui.sg = null; showSheet();
+  }
+  function quoteHtml() {
+    var s = ui.sheet, d = s.draft, h = '';
+    h += '<div class="bar"><button data-act="sheet-close">닫기</button><h2>' + (s.isNew ? '새 견적서' : '견적서') + '</h2><button class="strong" data-act="quote-save">저장</button></div><div class="in">';
+    h += '<label class="f" for="qf-client">받는 곳</label><div class="searchbar">' + icon('search', 20) + '<input id="qf-client" type="text" value="' + esc(d.clientName) + '" placeholder="거래처 이름 검색" data-suggest="quote" autocomplete="off"></div><div id="sg-quote" class="sg"></div>';
+    h += '<p class="hint">' + (d.clientId && byId(d.clientId) ? '내 거래처와 연결됨 · 견적서에는 "' + esc(d.clientName) + ' 貴中"으로 들어갑니다.' : '견적서에는 쓴 이름 뒤에 "貴中"이 붙습니다.') + '</p>';
+    h += '<div class="row2"><div><label class="f" for="qf-date">견적일</label><input id="qf-date" type="date" value="' + d.date + '"></div><div><label class="f">부가세 표시</label>' + seg('quote-vat', [['포함', 'VAT 포함'], ['별도', 'VAT 별도']], d.vat, 'brand-on') + '</div></div>';
+    h += '<label class="f" for="qf-title">견적 제목</label><input id="qf-title" type="text" value="' + esc(d.title) + '" placeholder="예: 후드, 급식홀 바닥, 천장 복원세정" autocomplete="off">';
+    h += '<div class="sec-h"><span><b>품목</b><span class="n">' + d.items.length + '/' + Quote.MAX_ITEMS + '</span></span></div>';
+    d.items.forEach(function (it, i) {
+      h += '<div class="group pad qitem"><div class="row2"><input type="text" data-k="name" data-i="' + i + '" value="' + esc(it.name) + '" placeholder="' + (i + 1) + '. 품목 (예: 조리실 후드)" aria-label="품목 ' + (i + 1) + '" autocomplete="off">' +
+        '<button class="round fit" data-act="quote-del-item" data-i="' + i + '" aria-label="품목 ' + (i + 1) + ' 지우기">' + icon('x', 18) + '</button></div>';
+      if (!it.service) h += '<div class="row2" style="margin-top:8px"><input type="text" data-k="spec" data-i="' + i + '" value="' + esc(it.spec) + '" placeholder="규격" aria-label="규격" autocomplete="off">' +
+        '<input type="text" inputmode="numeric" data-k="qty" data-i="' + i + '" value="' + (it.qty == null ? '' : it.qty) + '" placeholder="수량" aria-label="수량" autocomplete="off">' +
+        '<input type="text" inputmode="numeric" data-k="price" data-i="' + i + '" value="' + (it.price == null ? '' : Number(it.price).toLocaleString('ko-KR')) + '" placeholder="단가(원)" aria-label="단가" autocomplete="off" style="flex:1.6"></div>';
+      h += '<label class="switch" style="padding:10px 2px 0;min-height:0"><span style="font-size:.88rem">서비스로 진행 (금액 없음)</span><input type="checkbox" data-k="service" data-i="' + i + '"' + (it.service ? ' checked' : '') + '></label></div>';
+    });
+    if (d.items.length < Quote.MAX_ITEMS) h += '<button class="btn soft wide" data-act="quote-add-item">' + icon('plus', 20) + '품목 추가</button>';
+    else h += '<p class="hint">양식에 품목 칸이 6줄이라 6개까지 넣을 수 있습니다.</p>';
+    h += '<div class="sum" style="margin-top:14px"><div class="lbl">견적 금액 (VAT ' + d.vat + ')</div><div class="big" id="q-total">' + won(Quote.total(d)) + '</div></div>';
+    h += '<label class="f" for="qf-desc">작업 내용 (견적서 아래 칸)</label><textarea id="qf-desc" style="min-height:150px" placeholder="1. 후드 복원세정작업&#10;* 스팀세척기 살균 소독&#10;* 후드 고압 세척">' + esc(d.desc) + '</textarea>';
+    h += '<label class="f" for="qf-note">기타사항</label><textarea id="qf-note" placeholder="없으면 비워 두세요">' + esc(d.note) + '</textarea>';
+    h += '<button class="btn pri wide big" style="margin-top:18px" data-act="quote-export">' + icon('doc', 22) + '엑셀 파일로 받기</button>';
+    if (canShareFiles()) h += '<button class="btn soft wide" style="margin-top:8px" data-act="quote-share">' + icon('msg', 20) + '엑셀 파일 공유 (카카오톡 · 메일)</button>';
+    if (!Quote.hasTemplate()) h += '<p class="hint">엑셀로 받으려면 서류 화면에서 견적서 양식 파일을 먼저 올려야 합니다.</p>';
+    if (!s.isNew) h += '<div class="row2" style="margin-top:8px"><button class="btn" data-act="quote-sent">' + (d.sent ? '발송 표시 취소' : '발송 완료로 표시') + '</button><button class="btn" data-act="quote-copy">복사해서 새 견적</button></div>' +
+      '<button class="btn danger wide" style="margin-top:8px" data-act="quote-delete">이 견적서 삭제</button>';
+    return h + '</div>';
+  }
+  function toNum(v) { var n = parseFloat(String(v).replace(/[^0-9.]/g, '')); return isFinite(n) ? n : null; }
+  function syncQuote() {
+    var s = ui.sheet; if (!s || s.mode !== 'quote' || !$('#qf-client')) return;
+    var d = s.draft;
+    d.clientName = $('#qf-client').value.trim(); d.date = $('#qf-date').value || d.date;
+    d.title = $('#qf-title').value.trim(); d.desc = $('#qf-desc').value; d.note = $('#qf-note').value;
+    document.querySelectorAll('#sheet [data-k]').forEach(function (el) {
+      var it = d.items[+el.dataset.i], k = el.dataset.k; if (!it) return;
+      if (k === 'service') it.service = el.checked;
+      else if (k === 'qty' || k === 'price') it[k] = toNum(el.value);
+      else it[k] = el.value.trim();
+    });
+  }
+  /** 저장. 성공하면 저장된 견적을 돌려줌 */
+  function saveQuote(quiet) {
+    syncQuote();
+    var s = ui.sheet, d = s.draft;
+    if (!d.clientName) { toast('받는 곳을 입력해 주세요.'); return null; }
+    d.items = d.items.filter(function (it) { return it.name; });
+    if (!d.items.length) { d.items.push(blankItem()); renderSheet(); toast('품목을 하나 이상 넣어 주세요.'); return null; }
+    d.updatedAt = new Date().toISOString();
+    if (s.isNew) { d.createdAt = d.updatedAt; db.quotes.push(d); s.isNew = false; }
+    else db.quotes[db.quotes.findIndex(function (q) { return q.id === d.id; })] = d;
+    s.draft = JSON.parse(JSON.stringify(d)); s.original = JSON.stringify(s.draft);
+    save(); renderSheet();
+    if (!quiet) toast('견적서를 저장했습니다.');
+    return d;
+  }
+  function canShareFiles() {
+    try { return !!(navigator.canShare && navigator.canShare({ files: [new File(['x'], 'a.xlsx', { type: XLSX_TYPE })] })); } catch (e) { return false; }
+  }
+  var XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  function exportQuote(share) {
+    var tpl = Quote.getTemplate();
+    if (!tpl) return toast('견적서 양식 파일을 먼저 올려 주세요. (서류 화면 맨 위)');
+    var q = saveQuote(true); if (!q) return;
+    var bytes;
+    try { bytes = Quote.build(tpl, q); } catch (e) { return toast(e.message); }
+    var blob = new Blob([bytes], { type: XLSX_TYPE });
+    if (share) {
+      var file = new File([blob], '견적서_' + q.clientName.replace(/[\\/:*?"<>|]/g, ' ') + '_' + q.date + '.xlsx', { type: XLSX_TYPE });
+      return navigator.share({ files: [file], title: '견적서 - ' + q.clientName }).catch(function (e) { if (!e || e.name !== 'AbortError') toast('공유하지 못했습니다. "엑셀 파일로 받기"를 써 주세요.'); });
+    }
+    var url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = 'mimifresh-quote-' + q.date + '.xlsx'; // 한글 이름은 일부 브라우저에서 깨져 영문 사용
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
+    toast('엑셀 파일을 만들었습니다. 다운로드(파일) 폴더를 확인하세요.');
+  }
+  function toggleQuoteSent() {
+    var q = saveQuote(true); if (!q) return;
+    q.sent = !q.sent; ui.sheet.draft.sent = q.sent; ui.sheet.original = JSON.stringify(ui.sheet.draft);
+    var c = q.clientId && byId(q.clientId);
+    if (q.sent && c && (c.status === '미방문' || c.status === '방문 완료')) c.status = '견적 발송';
+    save(); renderSheet(); toast(q.sent ? '발송 완료로 표시했습니다.' + (c ? ' 거래처 상태도 "견적 발송"으로 바꿨습니다.' : '') : '발송 표시를 취소했습니다.');
+  }
+  function copyQuote() {
+    var q = saveQuote(true); if (!q) return;
+    var from = JSON.parse(JSON.stringify(q));
+    openQuote(null, null, Object.assign(from, { id: Store.uid(), date: Store.todayStr(), sent: false }));
+    toast('복사했습니다. 받는 곳과 금액을 고친 뒤 저장하세요.');
+  }
+  function deleteQuote() {
+    var d = ui.sheet.draft;
+    if (!confirm('"' + d.clientName + '" 견적서를 삭제할까요?')) return;
+    db.quotes = db.quotes.filter(function (q) { return q.id !== d.id; });
+    save(); closeSheet(true); toast('삭제했습니다.');
+  }
+  function loadTemplate(file) {
+    var fr = new FileReader();
+    fr.onload = function () {
+      try { Quote.setTemplate(new Uint8Array(fr.result)); toast('견적서 양식을 등록했습니다.'); }
+      catch (e) { toast(e.message); }
+      if (ui.sheet) renderSheet(); else render();
+    };
+    fr.readAsArrayBuffer(file);
   }
 
   /* ================= 설정 ================= */
@@ -870,6 +1002,24 @@
       renderSheet();
     },
     'sg-pick': function (b) { pickSuggestion(+b.dataset.i); },
+    'navi': function (b) {
+      var s = stopById(b.dataset.id), key = db.settings.kakaoKey;
+      if (!key) return toast('카카오내비는 설정에 카카오 JavaScript 키를 넣어야 쓸 수 있습니다.');
+      try { if (!KakaoApi.naviStart(key, s)) toast('카카오내비를 준비하고 있습니다. 잠시 뒤 한 번 더 눌러 주세요.'); }
+      catch (e) { toast('카카오내비를 열지 못했습니다. 카카오맵 단추를 써 주세요.'); }
+    },
+    'quote-new': function (b) { var c = b.dataset.id ? byId(b.dataset.id) : null; openQuote(null, c); },
+    'quote-open': function (b) { openQuote(b.dataset.id); },
+    'quote-save': function () { saveQuote(); },
+    'quote-export': function () { exportQuote(false); },
+    'quote-share': function () { exportQuote(true); },
+    'quote-copy': copyQuote,
+    'quote-delete': deleteQuote,
+    'quote-sent': toggleQuoteSent,
+    'quote-add-item': function () { syncQuote(); var d = ui.sheet.draft; if (d.items.length < Quote.MAX_ITEMS) d.items.push(blankItem()); renderSheet(); },
+    'quote-del-item': function (b) { syncQuote(); var d = ui.sheet.draft; d.items.splice(+b.dataset.i, 1); if (!d.items.length) d.items.push(blankItem()); renderSheet(); },
+    'quote-vat': function (b) { syncQuote(); ui.sheet.draft.vat = b.dataset.v; renderSheet(); },
+    'tpl-pick': function () { $('#tpl-file').value = ''; $('#tpl-file').click(); },
     'plan': plan,
     'reset-today': resetToday,
     'restore-rec': function () {
@@ -915,22 +1065,26 @@
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Enter' || e.isComposing || !e.target.dataset) return;
     if (e.target.dataset.enter) { e.preventDefault(); ACT[e.target.dataset.enter](e.target); }
-    else if (e.target.dataset.suggest && e.target.dataset.suggest !== 'client') { e.preventDefault(); if (ui.sg && ui.sg.items && ui.sg.items.length) pickSuggestion(0); }
+    else if (e.target.dataset.suggest && e.target.dataset.suggest !== 'client' && e.target.dataset.suggest !== 'quote') { e.preventDefault(); if (ui.sg && ui.sg.items && ui.sg.items.length) pickSuggestion(0); }
   });
   document.addEventListener('input', function (e) {
     if (e.target.id === 'q') { ui.q = e.target.value; renderClientList(); }
-    else if (e.target.dataset && e.target.dataset.suggest) onSuggestInput(e.target);
+    else if (e.target.dataset && e.target.dataset.suggest) { if (e.target.id === 'qf-client' && ui.sheet) ui.sheet.draft.clientId = ''; onSuggestInput(e.target); }
+    else if (e.target.dataset && e.target.dataset.k && ui.sheet && ui.sheet.mode === 'quote') { syncQuote(); var tt = $('#q-total'); if (tt) tt.textContent = won(Quote.total(ui.sheet.draft)); }
   });
   document.addEventListener('change', function (e) {
     if (e.target.id === 'f-status') { ui.fStatus = e.target.value; renderClients(); }
     else if (e.target.id === 's-auto') { db.settings.driveAuto = e.target.checked; save(); }
     else if (e.target.id === 'import-file' && e.target.files[0]) importBackup(e.target.files[0]);
+    else if (e.target.id === 'tpl-file' && e.target.files[0]) loadTemplate(e.target.files[0]);
+    else if (e.target.dataset && e.target.dataset.k === 'service') { syncQuote(); renderSheet(); }
   });
 
   /* ================= 시작 ================= */
   initDrag();
   switchTab('clients');
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () { });
+  if (db.settings.kakaoKey) KakaoApi.naviPreload(db.settings.kakaoKey).catch(function () { });
   if (db.settings.kakaoKey) {
     KakaoApi.load(db.settings.kakaoKey).then(function () { if (!ui.sheet && ui.tab !== 'clients') render(); }, function () { if (ui.tab === 'settings') render(); });
   }

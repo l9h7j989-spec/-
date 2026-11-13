@@ -13,10 +13,9 @@
  *   today:   { date, stops:[ {id, clientId|'' , name, address, lat, lng, phone, doneDate} ],
  *              planned, recommended:[stopId], recommendedKm, method },
  *              ← stops 의 순서가 곧 방문 순서입니다.
- *   quotes:  [ ]   ← 견적서 자리 (서류 메뉴에서 사용 예정).
- *                    { id, clientId, date, items:[{name, qty, unitPrice}],
- *                      total, status, sentAt, memo } 형태로 쓰면
- *                    clientId 로 거래처 정보(이름·주소·담당자·연락처)를 끌어올 수 있습니다.
+ *   quotes:  [ { id, clientId|'', clientName, date, title, vat:'포함'|'별도',
+ *                items:[{name, spec, qty, price, service}] (최대 6줄),
+ *                desc(작업 내용), note(기타사항), sent, createdAt, updatedAt } ]
  * }
  */
 (function (root) {
@@ -111,7 +110,19 @@
       });
       T.planned = Array.isArray(t.order) && t.order.length > 0 && T.stops.length > 0;
     }
-    db.quotes = (Array.isArray(raw.quotes) ? raw.quotes : []).filter(function (q) { return q && ids[str(q.clientId)]; });
+    (Array.isArray(raw.quotes) ? raw.quotes : []).forEach(function (q) {
+      if (!q || typeof q !== 'object' || !str(q.clientName).trim()) return;
+      db.quotes.push({
+        id: str(q.id) || uid(), clientId: ids[str(q.clientId)] ? str(q.clientId) : '', clientName: str(q.clientName).trim(),
+        date: isDate(q.date) ? q.date : todayStr(), title: str(q.title), vat: q.vat === '별도' ? '별도' : '포함',
+        items: (Array.isArray(q.items) ? q.items : []).slice(0, 6).map(function (it) {
+          it = it || {};
+          return { name: str(it.name), spec: str(it.spec), qty: num(it.qty), price: num(it.price), service: !!it.service };
+        }),
+        desc: str(q.desc), note: str(q.note), sent: !!q.sent,
+        createdAt: str(q.createdAt) || new Date().toISOString(), updatedAt: str(q.updatedAt) || new Date().toISOString()
+      });
+    });
     return db;
   }
 

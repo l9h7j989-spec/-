@@ -149,5 +149,31 @@
     return 'https://map.kakao.com/link/to/' + encodeURIComponent(name) + ',' + p.lat + ',' + p.lng;
   }
 
-  root.KakaoApi = { state: state, load: load, searchPlaces: searchPlaces, geocode: geocode, roadRoute: roadRoute, navLink: navLink };
+  /* ---------- 카카오내비 앱으로 바로 길안내 ---------- */
+  var NAVI_SDK = 'https://t1.kakaocdn.net/kakao_js_sdk/2.8.5/kakao.min.js';
+  var naviLoading = null;
+  /** 미리 불러 두기 (단추를 누른 순간 바로 앱이 열리게) */
+  function naviPreload(jsKey) {
+    if (root.Kakao && root.Kakao.Navi) { if (!root.Kakao.isInitialized()) root.Kakao.init(jsKey); return Promise.resolve(); }
+    if (naviLoading) return naviLoading;
+    naviLoading = new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = NAVI_SDK; s.crossOrigin = 'anonymous';
+      s.onload = function () {
+        try { if (!root.Kakao.isInitialized()) root.Kakao.init(jsKey); resolve(); }
+        catch (e) { naviLoading = null; reject(new Error('카카오내비 연결에 실패했습니다. 카카오 JavaScript 키를 확인해 주세요.')); }
+      };
+      s.onerror = function () { naviLoading = null; reject(new Error('카카오내비 프로그램을 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.')); };
+      document.head.appendChild(s);
+    });
+    return naviLoading;
+  }
+  /** 카카오내비 실행. 준비가 됐으면 true, 아직이면 불러오기만 하고 false */
+  function naviStart(jsKey, p) {
+    if (!(root.Kakao && root.Kakao.Navi && root.Kakao.isInitialized())) { naviPreload(jsKey).catch(function () { }); return false; }
+    root.Kakao.Navi.start({ name: String(p.name || '목적지').slice(0, 40), x: p.lng, y: p.lat, coordType: 'wgs84' });
+    return true;
+  }
+
+  root.KakaoApi = { state: state, load: load, naviPreload: naviPreload, naviStart: naviStart, searchPlaces: searchPlaces, geocode: geocode, roadRoute: roadRoute, navLink: navLink };
 })(window);
