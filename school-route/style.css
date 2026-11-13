@@ -64,7 +64,8 @@ main { max-width: 640px; margin: 0 auto; padding: 6px 16px 16px; }
 .notice { background: #fff6e0; color: #6b4300; border-radius: 14px; padding: 12px 14px; margin-bottom: 12px; font-size: .88rem; }
 .empty { text-align: center; color: var(--sub); padding: 44px 16px 24px; font-size: .95rem; }
 .empty .em-ic { width: 68px; height: 68px; margin: 0 auto 14px; border-radius: 22px; background: var(--tint); color: var(--brand); display: flex; align-items: center; justify-content: center; }
-.empty b { display: block; color: var(--ink); font-size: 1.1rem; margin-bottom: 4px; }
+.empty b { color: var(--ink); }
+.empty b:first-of-type { display: block; font-size: 1.1rem; margin-bottom: 4px; }
 
 input[type=text], input[type=tel], input[type=search], input[type=date], textarea {
   width: 100%; min-height: 50px; padding: 11px 14px; border: 1px solid transparent; border-radius: 12px; background: var(--fill); outline: none; -webkit-appearance: none; appearance: none;
@@ -200,3 +201,19 @@ body.lock { overflow: hidden; }
 .qitem { margin-bottom: 10px; }
 .qitem input[type=text] { min-height: 46px; }
 .row .ic.chev { color: var(--faint); margin-left: 4px; }
+
+/* 회사 마크 */
+.brand img { height: 22px; width: auto; display: block; }
+.brand i { display: none; }
+.brand { font-size: .8rem; gap: 7px; }
+body::before { content: ""; position: fixed; right: -40px; bottom: 70px; width: 300px; height: 360px; background: url(logo.png) no-repeat center / contain; opacity: .06; pointer-events: none; z-index: 0; }
+main { position: relative; z-index: 1; }
+.em-logo { display: block; height: 96px; width: auto; margin: 0 auto 14px; }
+#syncbar { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 46px; padding: 8px 14px; margin: 4px 0 12px; border: 0; border-radius: 14px; background: #fff6e0; color: #6b4300; font-size: .84rem; font-weight: 600; text-align: left; }
+#syncbar span { flex: 1; } #syncbar b { color: var(--brand-ink); white-space: nowrap; }
+#login { position: fixed; inset: 0; z-index: 70; background: linear-gradient(180deg, #fff, var(--tint)); display: flex; align-items: center; justify-content: center; padding: 24px; }
+.login-in { width: 100%; max-width: 360px; text-align: center; }
+.login-in img { height: 150px; width: auto; margin-bottom: 8px; }
+.login-in h2 { margin: 0; font-size: 1.7rem; font-weight: 800; letter-spacing: -.03em; }
+.login-in p { color: var(--sub); margin: 10px 0 22px; }
+.login-in .btn.plain { margin-top: 6px; }

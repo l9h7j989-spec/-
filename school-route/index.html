@@ -12,7 +12,7 @@
 <meta name="format-detection" content="telephone=no">
 <title>미미 프레쉬</title>
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="icon" href="icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -20,7 +20,7 @@
 <header id="top">
   <div class="top-in">
     <div>
-      <div class="brand"><i></i>미미 프레쉬</div>
+      <div class="brand"><img src="logo.png" alt="">미미 프레쉬</div>
       <h1 id="title">거래처</h1>
     </div>
     <div id="top-act"></div>
@@ -28,6 +28,7 @@
 </header>
 
 <main>
+  <button id="syncbar" data-act="drive-tap" hidden></button>
   <section id="tab-clients" class="tab"></section>
   <section id="tab-sales" class="tab" hidden>
     <div id="sales-top"></div>
@@ -46,11 +47,22 @@
   <button data-tab="settings"></button>
 </nav>
 
+<div id="login" hidden>
+  <div class="login-in">
+    <img src="logo.png" alt="미미 프레쉬 로고">
+    <h2>미미 프레쉬</h2>
+    <p>로그인하면 거래처, 견적서, 설정이<br>이 기기로 모두 따라옵니다.</p>
+    <button class="btn pri wide big" data-act="login">Google로 로그인</button>
+    <button class="btn plain wide" data-act="login-skip">로그인 없이 시작</button>
+    <p class="hint" id="login-msg"></p>
+  </div>
+</div>
 <div id="sheet" hidden></div>
 <div id="toast" role="status" hidden></div>
 <input id="import-file" type="file" accept="application/json,.json" hidden>
 <input id="tpl-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
 
+<script src="js/config.js"></script>
 <script src="js/route.js"></script>
 <script src="js/store.js"></script>
 <script src="js/kakao.js"></script>

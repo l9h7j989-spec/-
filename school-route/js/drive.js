@@ -13,7 +13,7 @@
   var UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files';
 
   var state = { gis: 'none', message: '' }; // gis: none | loading | ready | error
-  var token = '', expiresAt = 0, client = null, clientIdUsed = '', fileId = '', pending = null, gisLoading = null;
+  var token = '', expiresAt = 0, client = null, clientIdUsed = '', ids = {}, pending = null, gisLoading = null;
 
   /** 구글 로그인 프로그램을 미리 불러 둔다 (버튼을 눌렀을 때 창이 바로 뜨게 하려고) */
   function preload(clientId) {
@@ -37,7 +37,7 @@
   }
   function init(clientId) {
     if (client && clientIdUsed === clientId) return;
-    token = ''; expiresAt = 0; fileId = '';
+    token = ''; expiresAt = 0; ids = {};
     clientIdUsed = clientId;
     client = google.accounts.oauth2.initTokenClient({
       client_id: clientId, scope: SCOPE,
@@ -86,47 +86,51 @@
       if (r.status === 403) return r.text().then(function (t) {
         throw new Error(/accessNotConfigured|has not been used|disabled/i.test(t) ? '구글 클라우드에서 "Google Drive API"를 사용 설정해야 합니다.' : '구글 드라이브가 요청을 거절했습니다. (403)');
       });
-      if (r.status === 404) { fileId = ''; throw new Error('드라이브의 저장 파일을 찾지 못했습니다. 다시 시도해 주세요.'); }
+      if (r.status === 404) { ids = {}; throw new Error('드라이브의 저장 파일을 찾지 못했습니다. 다시 시도해 주세요.'); }
       if (!r.ok) throw new Error('구글 드라이브 오류가 났습니다. (' + r.status + ')');
       return r;
     });
   }
 
-  /** 이 앱이 만든 저장 파일 찾기 → {id, modifiedTime} 또는 null */
-  function find() {
-    var q = "name='" + FILE_NAME + "' and trashed=false";
+  /** 이 앱이 만든 파일 찾기 → {id, modifiedTime} 또는 null */
+  function find(name) {
+    name = name || FILE_NAME;
+    var q = "name='" + name + "' and trashed=false";
     return call(API + '?q=' + encodeURIComponent(q) + '&spaces=drive&orderBy=modifiedTime%20desc&pageSize=1&fields=' + encodeURIComponent('files(id,name,modifiedTime)'))
       .then(function (r) { return r.json(); })
       .then(function (j) {
         var f = j.files && j.files[0];
-        fileId = f ? f.id : '';
+        ids[name] = f ? f.id : '';
         return f ? { id: f.id, modifiedTime: f.modifiedTime } : null;
       });
   }
 
-  /** 내용 저장 (없으면 새로 만들고, 있으면 덮어씀) → {id, modifiedTime} */
-  function save(text) {
+  /** 파일 저장 (없으면 새로 만들고, 있으면 덮어씀) → {id, modifiedTime}.  body: 글자 또는 Uint8Array */
+  function saveFile(name, mime, body) {
     var go = function () {
-      if (fileId) {
-        return call(UPLOAD + '/' + encodeURIComponent(fileId) + '?uploadType=media&fields=id,modifiedTime', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: text });
+      if (ids[name]) {
+        return call(UPLOAD + '/' + encodeURIComponent(ids[name]) + '?uploadType=media&fields=id,modifiedTime', { method: 'PATCH', headers: { 'Content-Type': mime }, body: body });
       }
       var boundary = 'mimi' + Date.now().toString(36);
-      var body = '--' + boundary + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' +
-        JSON.stringify({ name: FILE_NAME, mimeType: 'application/json' }) +
-        '\r\n--' + boundary + '\r\nContent-Type: application/json\r\n\r\n' + text + '\r\n--' + boundary + '--';
-      return call(UPLOAD + '?uploadType=multipart&fields=id,modifiedTime', { method: 'POST', headers: { 'Content-Type': 'multipart/related; boundary=' + boundary }, body: body });
+      var blob = new Blob(['--' + boundary + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' +
+        JSON.stringify({ name: name, mimeType: mime }) +
+        '\r\n--' + boundary + '\r\nContent-Type: ' + mime + '\r\n\r\n', body, '\r\n--' + boundary + '--']);
+      return call(UPLOAD + '?uploadType=multipart&fields=id,modifiedTime', { method: 'POST', headers: { 'Content-Type': 'multipart/related; boundary=' + boundary }, body: blob });
     };
-    return (fileId ? Promise.resolve() : find()).then(go)
+    return (ids[name] ? Promise.resolve() : find(name)).then(go)
       .then(function (r) { return r.json(); })
-      .then(function (j) { fileId = j.id; return { id: j.id, modifiedTime: j.modifiedTime }; });
+      .then(function (j) { ids[name] = j.id; return { id: j.id, modifiedTime: j.modifiedTime }; });
+  }
+  function save(text) { return saveFile(FILE_NAME, 'application/json', text); }
+
+  /** 파일 내용 가져오기 → 글자. binary=true 면 Uint8Array */
+  function download(id, binary) {
+    return call(API + '/' + encodeURIComponent(id) + '?alt=media').then(function (r) {
+      return binary ? r.arrayBuffer().then(function (b) { return new Uint8Array(b); }) : r.text();
+    });
   }
 
-  /** 저장 파일 내용 가져오기 → 글자(JSON) */
-  function download(id) {
-    return call(API + '/' + encodeURIComponent(id) + '?alt=media').then(function (r) { return r.text(); });
-  }
+  function disconnect() { token = ''; expiresAt = 0; ids = {}; }
 
-  function disconnect() { token = ''; expiresAt = 0; fileId = ''; }
-
-  root.Drive = { FILE_NAME: FILE_NAME, state: state, preload: preload, connect: connect, connected: connected, find: find, save: save, download: download, disconnect: disconnect };
+  root.Drive = { FILE_NAME: FILE_NAME, state: state, preload: preload, connect: connect, connected: connected, TEMPLATE_NAME: 'mimifresh-quote-template.xlsx', find: find, save: save, saveFile: saveFile, download: download, disconnect: disconnect };
 })(window);
